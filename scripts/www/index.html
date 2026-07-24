@@ -1,0 +1,4011 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>i人日记 · 多图版</title>
+    <!-- html2canvas + jsPDF for PDF export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js">
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js">
+    </script>
+    <style>
+        /* ===== 全局重置 & 基础 ===== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg: #f7f2ed;
+            --card: rgba(255, 255, 255, 0.88);
+            --card-border: rgba(200, 180, 170, 0.18);
+            --text-primary: #4d403a;
+            --text-secondary: #8a7a72;
+            --text-light: #b5a59d;
+            --accent: #e8d5c4;
+            --accent-dark: #d4b8a8;
+            --shadow: 0 6px 28px rgba(120, 100, 90, 0.08);
+            --radius: 20px;
+            --radius-sm: 14px;
+            --transition: 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+            --app-font: -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+        }
+
+        body {
+            font-family: var(--app-font);
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding: 0 0 100px 0;
+            transition: background 0.8s ease;
+            background-attachment: fixed;
+            background-position: center;
+            background-size: cover;
+            background-repeat: no-repeat;
+        }
+        body.theme-default {
+            background-image: radial-gradient(ellipse at 20% 20%, rgba(235, 215, 200, 0.3) 0%, transparent 60%),
+                radial-gradient(ellipse at 80% 80%, rgba(210, 190, 210, 0.2) 0%, transparent 60%);
+            background-color: #f7f2ed;
+        }
+        body.theme-dawn {
+            background: linear-gradient(145deg, #fdf6ee 0%, #f5e6d3 100%);
+        }
+        body.theme-dusk {
+            background: linear-gradient(145deg, #e8d5c4 0%, #d4b8a8 100%);
+        }
+        body.theme-forest {
+            background: linear-gradient(145deg, #dce8d5 0%, #c0d0b8 100%);
+        }
+        body.theme-ocean {
+            background: linear-gradient(145deg, #d5e4ed 0%, #b8ccda 100%);
+        }
+        body.theme-peach {
+            background: linear-gradient(145deg, #fde8e0 0%, #f5d0c0 100%);
+        }
+        body.theme-lavender {
+            background: linear-gradient(145deg, #ece4f0 0%, #d8cce0 100%);
+        }
+
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--accent-dark);
+            border-radius: 10px;
+        }
+
+        .app-container {
+            max-width: 480px;
+            margin: 0 auto;
+            padding: 18px 16px 0;
+        }
+
+        /* ===== 顶部 ===== */
+        .app-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 4px 16px;
+        }
+        .app-title {
+            font-size: 22px;
+            font-weight: 600;
+            letter-spacing: 2px;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .app-title .sparkle {
+            font-size: 20px;
+            opacity: 0.7;
+        }
+        .app-title .sub {
+            font-size: 13px;
+            font-weight: 400;
+            color: var(--text-secondary);
+            letter-spacing: 0;
+            margin-left: 2px;
+        }
+        .header-actions {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+        .header-btn {
+            background: var(--card);
+            border: 1px solid var(--card-border);
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 15px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: var(--transition);
+            backdrop-filter: blur(6px);
+            box-shadow: var(--shadow);
+        }
+        .header-btn:active {
+            transform: scale(0.92);
+            background: var(--accent);
+        }
+
+        /* ===== 合并卡片：日期 + 每日一语 ===== */
+        .slide-card {
+            background: rgba(255, 255, 255, 0.78);
+            backdrop-filter: blur(10px);
+            border-radius: var(--radius);
+            padding: 18px 20px 16px;
+            margin-bottom: 16px;
+            border: 1px solid var(--card-border);
+            box-shadow: var(--shadow);
+            position: relative;
+            overflow: hidden;
+            touch-action: pan-y;
+            user-select: none;
+            -webkit-user-select: none;
+            transition: transform 0.05s;
+            cursor: grab;
+        }
+        .slide-card:active {
+            cursor: grabbing;
+        }
+        .slide-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -20%;
+            width: 140px;
+            height: 140px;
+            background: radial-gradient(circle, rgba(255, 215, 200, 0.2) 0%, transparent 70%);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+        .slide-card .card-inner {
+            position: relative;
+            z-index: 1;
+            transition: opacity 0.2s ease;
+        }
+        .slide-card .date-main {
+            font-size: 22px;
+            font-weight: 500;
+            letter-spacing: 1px;
+            color: var(--text-primary);
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .slide-card .date-main .weekday {
+            font-size: 15px;
+            font-weight: 400;
+            color: var(--text-secondary);
+            background: rgba(255, 255, 255, 0.5);
+            padding: 2px 12px;
+            border-radius: 20px;
+        }
+        .slide-card .date-sub {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+        .slide-card .quote-block {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(200, 180, 170, 0.2);
+        }
+        .slide-card .quote-mark {
+            font-size: 24px;
+            color: var(--accent-dark);
+            opacity: 0.4;
+            line-height: 1;
+            display: block;
+        }
+        .slide-card .quote-text {
+            font-size: 18px;
+            font-weight: 400;
+            line-height: 1.7;
+            color: var(--text-primary);
+            letter-spacing: 0.5px;
+            padding: 2px 4px 0;
+        }
+        .slide-card .quote-source {
+            text-align: right;
+            font-size: 12px;
+            color: var(--text-light);
+            margin-top: 4px;
+            letter-spacing: 1px;
+        }
+        .slide-card .slide-hint {
+            text-align: center;
+            font-size: 11px;
+            color: var(--text-light);
+            margin-top: 10px;
+            opacity: 0.5;
+            letter-spacing: 2px;
+            border-top: 1px solid rgba(200, 180, 170, 0.08);
+            padding-top: 8px;
+        }
+        .slide-card .slide-hint span {
+            display: inline-block;
+            animation: hintPulse 2s ease-in-out infinite;
+        }
+        @keyframes hintPulse {
+            0%,
+            100% {
+                opacity: 0.4;
+            }
+            50% {
+                opacity: 0.9;
+            }
+        }
+
+        /* ===== 日期导航 ===== */
+        .date-navigation {
+            background: var(--card);
+            backdrop-filter: blur(8px);
+            border-radius: var(--radius-sm);
+            padding: 10px 14px;
+            margin-bottom: 18px;
+            border: 1px solid var(--card-border);
+            box-shadow: var(--shadow);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+        .date-navigation .nav-btn {
+            background: none;
+            border: 1px solid var(--card-border);
+            border-radius: 30px;
+            padding: 6px 12px;
+            font-size: 16px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 36px;
+            background: rgba(255, 255, 255, 0.4);
+        }
+        .date-navigation .nav-btn:active {
+            transform: scale(0.92);
+            background: var(--accent);
+        }
+        .date-navigation .nav-date {
+            font-size: 15px;
+            font-weight: 500;
+            color: var(--text-primary);
+            flex: 1;
+            text-align: center;
+            cursor: pointer;
+            padding: 4px 0;
+            border-radius: 20px;
+            transition: var(--transition);
+            letter-spacing: 0.5px;
+            background: rgba(245, 240, 235, 0.3);
+        }
+        .date-navigation .nav-date:active {
+            background: rgba(200, 180, 170, 0.2);
+        }
+        .date-navigation .nav-date .sub-label {
+            font-size: 11px;
+            font-weight: 400;
+            color: var(--text-light);
+            margin-left: 6px;
+        }
+        .date-navigation .nav-clear {
+            background: none;
+            border: none;
+            color: var(--text-light);
+            font-size: 16px;
+            padding: 4px 8px;
+            cursor: pointer;
+            border-radius: 20px;
+            transition: var(--transition);
+            opacity: 0.6;
+        }
+        .date-navigation .nav-clear:active {
+            transform: scale(0.85);
+            opacity: 1;
+            color: var(--text-primary);
+        }
+
+        /* ===== 列表标题 ===== */
+        .list-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 4px 6px 12px;
+        }
+        .list-header h2 {
+            font-size: 17px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            letter-spacing: 1px;
+        }
+        .list-header .count {
+            font-size: 13px;
+            color: var(--text-light);
+            background: var(--card);
+            padding: 2px 14px;
+            border-radius: 20px;
+            border: 1px solid var(--card-border);
+        }
+
+        /* ===== 记录列表 ===== */
+        .records-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            padding-bottom: 8px;
+        }
+
+        /* ===== 空状态 ===== */
+        .empty-state {
+            text-align: center;
+            padding: 50px 20px 40px;
+            background: var(--card);
+            backdrop-filter: blur(6px);
+            border-radius: var(--radius);
+            border: 1px dashed var(--card-border);
+        }
+        .empty-state .empty-icon {
+            font-size: 52px;
+            opacity: 0.6;
+            margin-bottom: 12px;
+            display: block;
+        }
+        .empty-state .empty-title {
+            font-size: 18px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+        }
+        .empty-state .empty-desc {
+            font-size: 14px;
+            color: var(--text-light);
+            line-height: 1.6;
+        }
+        .empty-state .import-backup-btn {
+            margin-top: 16px;
+            padding: 10px 28px;
+            border-radius: 30px;
+            border: 1px solid var(--accent-dark);
+            background: var(--card);
+            color: var(--text-secondary);
+            font-size: 15px;
+            cursor: pointer;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .empty-state .import-backup-btn:active {
+            transform: scale(0.95);
+            background: var(--accent);
+        }
+        .empty-state .empty-desc {
+            margin-bottom: 8px;
+        }
+
+        /* ===== 记录卡片 ===== */
+        .record-card {
+            background: var(--card);
+            backdrop-filter: blur(10px);
+            border-radius: var(--radius);
+            border: 1px solid var(--card-border);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            transition: var(--transition);
+            animation: fadeUp 0.5s ease forwards;
+            opacity: 0;
+            transform: translateY(18px);
+            cursor: pointer;
+        }
+        .record-card.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .record-card:active {
+            transform: scale(0.99);
+        }
+
+        /* ===== 图片网格 (九宫格) ===== */
+        .record-images-grid {
+            display: grid;
+            gap: 3px;
+            background: #f0ebe6;
+            border-bottom: 1px solid var(--card-border);
+            width: 100%;
+        }
+        .record-images-grid .grid-item {
+            position: relative;
+            overflow: hidden;
+            aspect-ratio: 1/1;
+            background: #e8e0da;
+            cursor: pointer;
+        }
+        .record-images-grid .grid-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            transition: transform 0.2s;
+            pointer-events: none;
+        }
+        .record-images-grid .grid-item:active img {
+            transform: scale(0.97);
+        }
+        .record-images-grid.count-1 .grid-item {
+            aspect-ratio: 16/9;
+        }
+        .record-images-grid.count-1 .grid-item:first-child {
+            aspect-ratio: 16/9;
+        }
+        .record-images-grid.count-2 {
+            grid-template-columns: 1fr 1fr;
+        }
+        .record-images-grid.count-3 {
+            grid-template-columns: 1fr 1fr 1fr;
+        }
+        .record-images-grid.count-4 {
+            grid-template-columns: 1fr 1fr;
+        }
+        .record-images-grid.count-5 {
+            grid-template-columns: 1fr 1fr 1fr;
+        }
+        .record-images-grid.count-6 {
+            grid-template-columns: 1fr 1fr 1fr;
+        }
+        .record-images-grid.count-7 {
+            grid-template-columns: 1fr 1fr 1fr;
+        }
+        .record-images-grid.count-8 {
+            grid-template-columns: 1fr 1fr 1fr;
+        }
+        .record-images-grid.count-9 {
+            grid-template-columns: 1fr 1fr 1fr;
+        }
+
+        .record-card .record-image-placeholder {
+            width: 100%;
+            aspect-ratio: 16/9;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f5f0eb;
+            color: var(--text-light);
+            font-size: 28px;
+            border-bottom: 1px solid var(--card-border);
+            pointer-events: none;
+        }
+        .record-card .record-body {
+            padding: 16px 18px 14px;
+            pointer-events: none;
+        }
+        .record-card .record-text {
+            font-size: 16px;
+            line-height: 1.7;
+            color: var(--text-primary);
+            word-break: break-word;
+            white-space: pre-wrap;
+            margin-bottom: 8px;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            pointer-events: none;
+        }
+        .record-card .record-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 12px;
+            color: var(--text-light);
+            padding-top: 6px;
+            border-top: 1px solid rgba(200, 180, 170, 0.15);
+            pointer-events: none;
+        }
+        .record-card .record-meta .left-meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            pointer-events: none;
+        }
+        .record-card .record-meta .mood-badge {
+            font-size: 18px;
+            line-height: 1;
+            margin-right: 2px;
+            pointer-events: none;
+        }
+        .record-card .record-meta .weather-badge {
+            font-size: 16px;
+            line-height: 1;
+            margin-right: 2px;
+            pointer-events: none;
+        }
+        .record-card .record-meta .time {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            pointer-events: none;
+        }
+        .record-card .record-meta .time .dot {
+            display: inline-block;
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            background: var(--accent-dark);
+            opacity: 0.4;
+        }
+        .record-card .record-delete {
+            background: none;
+            border: none;
+            color: var(--text-light);
+            font-size: 16px;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 8px;
+            transition: var(--transition);
+            opacity: 0.5;
+            pointer-events: auto;
+            position: relative;
+            z-index: 2;
+        }
+        .record-card .record-delete:active {
+            transform: scale(0.85);
+            color: #d47a7a;
+            opacity: 1;
+        }
+        .record-card .edit-hint {
+            font-size: 11px;
+            color: var(--text-light);
+            opacity: 0.5;
+            margin-top: 4px;
+            pointer-events: none;
+            text-align: right;
+        }
+
+        /* ===== 浮动添加按钮 ===== */
+        .fab {
+            position: fixed;
+            bottom: 32px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #e8d5c4, #dcc4b3);
+            border: none;
+            color: #fff;
+            font-size: 32px;
+            font-weight: 300;
+            box-shadow: 0 8px 32px rgba(180, 150, 130, 0.35);
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        .fab:active {
+            transform: translateX(-50%) scale(0.88);
+            box-shadow: 0 4px 16px rgba(180, 150, 130, 0.25);
+        }
+        .fab .fab-icon {
+            line-height: 1;
+            transition: var(--transition);
+        }
+        .fab.open .fab-icon {
+            transform: rotate(45deg);
+        }
+
+        /* ===== 模态框通用 ===== */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(60, 50, 45, 0.35);
+            backdrop-filter: blur(6px);
+            z-index: 200;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.35s ease, visibility 0.35s ease;
+            padding: 20px;
+        }
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal {
+            background: var(--card);
+            backdrop-filter: blur(20px);
+            border-radius: var(--radius);
+            max-width: 440px;
+            width: 100%;
+            padding: 24px 22px 28px;
+            box-shadow: 0 20px 60px rgba(60, 50, 45, 0.15);
+            transform: translateY(40px) scale(0.96);
+            transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;
+            opacity: 0;
+            border: 1px solid var(--card-border);
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .modal-overlay.active .modal {
+            transform: translateY(0) scale(1);
+            opacity: 1;
+        }
+
+        .modal .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 18px;
+        }
+        .modal .modal-header h3 {
+            font-size: 19px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        .modal .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: var(--text-light);
+            cursor: pointer;
+            padding: 0 4px;
+            transition: var(--transition);
+            line-height: 1;
+        }
+        .modal .modal-close:active {
+            transform: scale(0.85);
+            color: var(--text-primary);
+        }
+
+        /* ===== 查看模态框 ===== */
+        .view-content {
+            padding: 4px 0;
+        }
+        .view-content .view-images-grid {
+            display: grid;
+            gap: 4px;
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+            margin-bottom: 16px;
+            background: #f0ebe6;
+            border: 1px solid var(--card-border);
+        }
+        .view-content .view-images-grid .grid-item {
+            position: relative;
+            overflow: hidden;
+            aspect-ratio: 1/1;
+            background: #e8e0da;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+        .view-content .view-images-grid .grid-item:hover {
+            transform: scale(1.02);
+            z-index: 2;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+        }
+        .view-content .view-images-grid .grid-item::after {
+            content: '🔍';
+            position: absolute;
+            bottom: 8px;
+            right: 8px;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+            color: #fff;
+            font-size: 13px;
+            padding: 2px 10px;
+            border-radius: 20px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+            line-height: 1.6;
+        }
+        .view-content .view-images-grid .grid-item:hover::after {
+            opacity: 0.9;
+        }
+        .view-content .view-images-grid .grid-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            pointer-events: none;
+        }
+        .view-content .view-images-grid.count-1 .grid-item {
+            aspect-ratio: 16/9;
+        }
+        .view-content .view-images-grid.count-2 {
+            grid-template-columns: 1fr 1fr;
+        }
+        .view-content .view-images-grid.count-3 {
+            grid-template-columns: 1fr 1fr 1fr;
+        }
+        .view-content .view-images-grid.count-4 {
+            grid-template-columns: 1fr 1fr;
+        }
+        .view-content .view-images-grid.count-5,
+        .view-content .view-images-grid.count-6,
+        .view-content .view-images-grid.count-7,
+        .view-content .view-images-grid.count-8,
+        .view-content .view-images-grid.count-9 {
+            grid-template-columns: 1fr 1fr 1fr;
+        }
+        .view-content .view-mood {
+            font-size: 28px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .view-content .view-mood .view-mood-label {
+            font-size: 15px;
+            color: var(--text-secondary);
+            font-weight: 400;
+        }
+        .view-content .view-weather {
+            font-size: 24px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .view-content .view-weather .view-weather-label {
+            font-size: 15px;
+            color: var(--text-secondary);
+            font-weight: 400;
+        }
+        .view-content .view-text {
+            font-size: 17px;
+            line-height: 1.8;
+            color: var(--text-primary);
+            white-space: pre-wrap;
+            word-break: break-word;
+            padding: 4px 0 12px;
+            border-bottom: 1px solid rgba(200, 180, 170, 0.15);
+            margin-bottom: 12px;
+        }
+        .view-content .view-text-empty {
+            color: var(--text-light);
+            font-style: italic;
+        }
+        .view-content .view-meta {
+            font-size: 13px;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .view-content .view-meta .view-time {
+            color: var(--text-light);
+        }
+
+        /* ===== 图片全屏预览 ===== */
+        .image-preview-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.92);
+            z-index: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+            padding: 20px;
+            cursor: pointer;
+            flex-direction: column;
+            gap: 16px;
+            touch-action: pan-x pan-y;
+        }
+        .image-preview-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        .image-preview-overlay .preview-image {
+            max-width: 100%;
+            max-height: 80vh;
+            object-fit: contain;
+            border-radius: 8px;
+            box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+            cursor: default;
+            touch-action: pan-x pan-y;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .image-preview-overlay .preview-close {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: #fff;
+            font-size: 30px;
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: background 0.2s;
+            border: none;
+            font-family: inherit;
+        }
+        .image-preview-overlay .preview-close:active {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(0.9);
+        }
+        .image-preview-overlay .preview-counter {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 14px;
+            background: rgba(0, 0, 0, 0.4);
+            padding: 4px 16px;
+            border-radius: 20px;
+            backdrop-filter: blur(4px);
+            user-select: none;
+        }
+        .image-preview-overlay .preview-nav {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255, 255, 255, 0.12);
+            border: none;
+            color: #fff;
+            font-size: 32px;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: background 0.2s;
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+        }
+        .image-preview-overlay .preview-nav:active {
+            background: rgba(255, 255, 255, 0.25);
+        }
+        .image-preview-overlay .preview-nav.prev {
+            left: 16px;
+        }
+        .image-preview-overlay .preview-nav.next {
+            right: 16px;
+        }
+        .image-preview-overlay .preview-nav.hidden {
+            display: none;
+        }
+
+        /* ===== 记录模态框 & 编辑模态框 ===== */
+        .selector-group {
+            margin-bottom: 18px;
+        }
+        .selector-group .selector-label {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            display: block;
+            letter-spacing: 0.5px;
+        }
+        .mood-grid,
+        .weather-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .mood-btn,
+        .weather-btn {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            border: 2px solid transparent;
+            background: rgba(245, 240, 235, 0.5);
+            font-size: 24px;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+        }
+        .mood-btn:active,
+        .weather-btn:active {
+            transform: scale(0.88);
+        }
+        .mood-btn.active,
+        .weather-btn.active {
+            border-color: var(--accent-dark);
+            background: rgba(212, 184, 168, 0.2);
+            box-shadow: 0 0 0 4px rgba(212, 184, 168, 0.1);
+        }
+        .weather-btn {
+            font-size: 22px;
+        }
+
+        /* ===== 多图上传区域 ===== */
+        .multi-upload-area {
+            border: 2px dashed var(--card-border);
+            border-radius: var(--radius-sm);
+            padding: 16px;
+            margin-bottom: 16px;
+            background: rgba(245, 240, 235, 0.3);
+            transition: var(--transition);
+        }
+        .multi-upload-area .upload-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+        }
+        .multi-upload-area .upload-btn {
+            padding: 8px 20px;
+            border-radius: 30px;
+            border: 1px solid var(--card-border);
+            background: var(--card);
+            color: var(--text-secondary);
+            font-size: 14px;
+            cursor: pointer;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .multi-upload-area .upload-btn:active {
+            transform: scale(0.95);
+            background: var(--accent);
+        }
+        .multi-upload-area .upload-hint-text {
+            font-size: 13px;
+            color: var(--text-light);
+        }
+        .multi-upload-area .image-thumbnails {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+            gap: 8px;
+            margin-top: 8px;
+        }
+        .multi-upload-area .image-thumbnails .thumb-item {
+            position: relative;
+            aspect-ratio: 1/1;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid var(--card-border);
+            background: #f0ebe6;
+        }
+        .multi-upload-area .image-thumbnails .thumb-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        .multi-upload-area .image-thumbnails .thumb-item .thumb-remove {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.55);
+            backdrop-filter: blur(4px);
+            border: none;
+            color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: var(--transition);
+            padding: 0;
+            line-height: 1;
+        }
+        .multi-upload-area .image-thumbnails .thumb-item .thumb-remove:active {
+            transform: scale(0.85);
+            background: rgba(200, 50, 50, 0.8);
+        }
+        .multi-upload-area .image-thumbnails .thumb-item .thumb-index {
+            position: absolute;
+            bottom: 2px;
+            left: 2px;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(4px);
+            color: #fff;
+            font-size: 10px;
+            padding: 0 6px;
+            border-radius: 10px;
+            line-height: 18px;
+        }
+        .multi-upload-area .max-hint {
+            font-size: 12px;
+            color: var(--text-light);
+            text-align: center;
+            margin-top: 6px;
+        }
+
+        .modal .text-input {
+            width: 100%;
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-sm);
+            padding: 14px 16px;
+            font-size: 15px;
+            font-family: inherit;
+            color: var(--text-primary);
+            background: rgba(255, 255, 255, 0.6);
+            resize: vertical;
+            min-height: 90px;
+            transition: var(--transition);
+            outline: none;
+            line-height: 1.6;
+        }
+        .modal .text-input:focus {
+            border-color: var(--accent-dark);
+            box-shadow: 0 0 0 4px rgba(212, 184, 168, 0.15);
+            background: rgba(255, 255, 255, 0.8);
+        }
+        .modal .text-input::placeholder {
+            color: var(--text-light);
+        }
+
+        .modal .btn-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 18px;
+            flex-wrap: wrap;
+        }
+        .modal .btn-group button {
+            flex: 1;
+            padding: 14px 0;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+            letter-spacing: 0.5px;
+            min-width: 60px;
+        }
+        .modal .btn-group .btn-cancel {
+            background: rgba(200, 180, 170, 0.15);
+            color: var(--text-secondary);
+        }
+        .modal .btn-group .btn-cancel:active {
+            transform: scale(0.96);
+            background: rgba(200, 180, 170, 0.25);
+        }
+        .modal .btn-group .btn-save {
+            background: linear-gradient(135deg, #e8d5c4, #dcc4b3);
+            color: #fff;
+            box-shadow: 0 4px 16px rgba(180, 150, 130, 0.25);
+        }
+        .modal .btn-group .btn-save:active {
+            transform: scale(0.96);
+            box-shadow: 0 2px 8px rgba(180, 150, 130, 0.15);
+        }
+        .modal .btn-group .btn-save:disabled {
+            opacity: 0.5;
+            transform: none;
+            cursor: not-allowed;
+        }
+        .modal .btn-group .btn-danger {
+            background: rgba(200, 80, 80, 0.15);
+            color: #c06060;
+        }
+        .modal .btn-group .btn-danger:active {
+            transform: scale(0.96);
+            background: rgba(200, 80, 80, 0.25);
+        }
+        .modal .btn-group .btn-edit {
+            background: rgba(212, 184, 168, 0.2);
+            color: var(--text-secondary);
+            border: 1px solid var(--accent-dark);
+        }
+        .modal .btn-group .btn-edit:active {
+            transform: scale(0.96);
+            background: rgba(212, 184, 168, 0.35);
+        }
+        .modal .btn-group .btn-pdf {
+            background: rgba(100, 150, 200, 0.15);
+            color: #4a7a9a;
+            border: 1px solid #8ab3c9;
+        }
+        .modal .btn-group .btn-pdf:active {
+            transform: scale(0.96);
+            background: rgba(100, 150, 200, 0.25);
+        }
+
+        /* ===== 设置面板 ===== */
+        .setting-group {
+            margin-bottom: 24px;
+        }
+        .setting-group .setting-label {
+            font-size: 15px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            display: block;
+            margin-bottom: 10px;
+        }
+        .theme-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+        .theme-btn {
+            padding: 12px 0;
+            border-radius: var(--radius-sm);
+            border: 2px solid transparent;
+            background: rgba(245, 240, 235, 0.5);
+            font-size: 14px;
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: var(--transition);
+            text-align: center;
+            font-weight: 500;
+            backdrop-filter: blur(2px);
+        }
+        .theme-btn:active {
+            transform: scale(0.95);
+        }
+        .theme-btn.active {
+            border-color: var(--accent-dark);
+            background: rgba(212, 184, 168, 0.2);
+            box-shadow: 0 0 0 4px rgba(212, 184, 168, 0.1);
+        }
+        .theme-btn .theme-dot {
+            display: block;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            margin: 0 auto 6px;
+            border: 1px solid rgba(0, 0, 0, 0.05);
+        }
+        .theme-btn .theme-name {
+            font-size: 12px;
+        }
+
+        .custom-bg-area {
+            background: rgba(245, 240, 235, 0.3);
+            border-radius: var(--radius-sm);
+            padding: 16px;
+            margin-top: 12px;
+            border: 1px dashed var(--card-border);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+        .custom-bg-area .bg-preview {
+            width: 100%;
+            max-height: 120px;
+            object-fit: cover;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--card-border);
+            display: none;
+        }
+        .custom-bg-area .bg-preview.show {
+            display: block;
+        }
+        .custom-bg-area .bg-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .custom-bg-area .bg-btn {
+            padding: 8px 20px;
+            border-radius: 30px;
+            border: 1px solid var(--card-border);
+            background: var(--card);
+            color: var(--text-secondary);
+            font-size: 14px;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        .custom-bg-area .bg-btn:active {
+            transform: scale(0.95);
+        }
+        .custom-bg-area .bg-btn.remove-btn {
+            border-color: #e0c0c0;
+            color: #b08080;
+        }
+        .custom-bg-area .bg-btn.remove-btn:active {
+            background: #f0d0d0;
+        }
+
+        .font-options {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .font-btn {
+            padding: 8px 18px;
+            border-radius: 30px;
+            border: 2px solid transparent;
+            background: rgba(245, 240, 235, 0.5);
+            font-size: 15px;
+            cursor: pointer;
+            transition: var(--transition);
+            color: var(--text-primary);
+        }
+        .font-btn:active {
+            transform: scale(0.95);
+        }
+        .font-btn.active {
+            border-color: var(--accent-dark);
+            background: rgba(212, 184, 168, 0.2);
+        }
+        .font-btn .font-sample {
+            display: block;
+            font-size: 16px;
+            margin-top: 2px;
+            opacity: 0.7;
+        }
+
+        .toggle-switch {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-top: 6px;
+        }
+        .toggle-switch input[type="checkbox"] {
+            width: 44px;
+            height: 24px;
+            appearance: none;
+            background: #d0c4bc;
+            border-radius: 20px;
+            position: relative;
+            outline: none;
+            transition: var(--transition);
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        .toggle-switch input[type="checkbox"]:checked {
+            background: var(--accent-dark);
+        }
+        .toggle-switch input[type="checkbox"]::before {
+            content: '';
+            position: absolute;
+            width: 18px;
+            height: 18px;
+            background: #fff;
+            border-radius: 50%;
+            top: 3px;
+            left: 3px;
+            transition: var(--transition);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+        }
+        .toggle-switch input[type="checkbox"]:checked::before {
+            left: 23px;
+        }
+        .toggle-switch .toggle-label {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        /* ===== 存储管理 ===== */
+        .storage-info {
+            background: rgba(245, 240, 235, 0.4);
+            border-radius: var(--radius-sm);
+            padding: 12px 16px;
+            margin: 8px 0 12px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            border: 1px solid var(--card-border);
+        }
+        .storage-info .storage-bar {
+            width: 100%;
+            height: 6px;
+            background: rgba(200, 180, 170, 0.2);
+            border-radius: 10px;
+            margin: 6px 0 4px;
+            overflow: hidden;
+        }
+        .storage-info .storage-bar .fill {
+            height: 100%;
+            background: var(--accent-dark);
+            border-radius: 10px;
+            transition: width 0.6s ease;
+            width: 0%;
+        }
+        .storage-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 6px;
+        }
+        .storage-actions .storage-btn {
+            padding: 6px 16px;
+            border-radius: 20px;
+            border: 1px solid var(--card-border);
+            background: var(--card);
+            font-size: 12px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        .storage-actions .storage-btn:active {
+            transform: scale(0.95);
+            background: var(--accent);
+        }
+
+        /* ===== 日历 ===== */
+        .calendar-container {
+            width: 100%;
+            user-select: none;
+        }
+        .calendar-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+            padding: 0 4px;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+        .calendar-header .cal-month-year {
+            font-size: 18px;
+            font-weight: 500;
+            color: var(--text-primary);
+            cursor: pointer;
+            padding: 4px 12px;
+            border-radius: 20px;
+            background: rgba(245, 240, 235, 0.3);
+            transition: var(--transition);
+            flex: 1;
+            text-align: center;
+            min-width: 100px;
+        }
+        .calendar-header .cal-month-year:active {
+            background: rgba(200, 180, 170, 0.2);
+        }
+        .calendar-header .cal-nav-btn {
+            background: none;
+            border: 1px solid var(--card-border);
+            border-radius: 30px;
+            padding: 4px 10px;
+            font-size: 16px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: var(--transition);
+            background: rgba(255, 255, 255, 0.4);
+        }
+        .calendar-header .cal-nav-btn:active {
+            transform: scale(0.92);
+            background: var(--accent);
+        }
+        .calendar-header .cal-today-btn {
+            background: none;
+            border: 1px solid var(--card-border);
+            border-radius: 30px;
+            padding: 4px 12px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: var(--transition);
+            background: rgba(255, 255, 255, 0.4);
+        }
+        .calendar-header .cal-today-btn:active {
+            transform: scale(0.92);
+            background: var(--accent);
+        }
+
+        .year-picker-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(60, 50, 45, 0.4);
+            backdrop-filter: blur(4px);
+            z-index: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+            padding: 20px;
+        }
+        .year-picker-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        .year-picker-box {
+            background: var(--card);
+            backdrop-filter: blur(20px);
+            border-radius: var(--radius);
+            padding: 20px 16px 24px;
+            max-width: 320px;
+            width: 100%;
+            max-height: 60vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--card-border);
+        }
+        .year-picker-box .picker-title {
+            font-size: 16px;
+            font-weight: 500;
+            color: var(--text-primary);
+            text-align: center;
+            margin-bottom: 14px;
+        }
+        .year-picker-box .year-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+        }
+        .year-picker-box .year-btn {
+            padding: 10px 0;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--card-border);
+            background: rgba(255, 255, 255, 0.4);
+            font-size: 16px;
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: var(--transition);
+            text-align: center;
+        }
+        .year-picker-box .year-btn:active {
+            transform: scale(0.92);
+            background: var(--accent);
+        }
+        .year-picker-box .year-btn.current {
+            border-color: var(--accent-dark);
+            background: rgba(212, 184, 168, 0.2);
+            font-weight: 500;
+        }
+
+        .calendar-weekdays {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            text-align: center;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            padding: 0 2px;
+        }
+        .calendar-days {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 4px;
+            padding: 0 2px;
+        }
+        .calendar-day {
+            aspect-ratio: 1 / 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            font-size: 16px;
+            font-weight: 400;
+            color: var(--text-primary);
+            background: transparent;
+            cursor: pointer;
+            transition: var(--transition);
+            position: relative;
+            padding: 0;
+            border: none;
+            font-family: inherit;
+        }
+        .calendar-day:active {
+            transform: scale(0.85);
+        }
+        .calendar-day.other-month {
+            color: var(--text-light);
+            opacity: 0.5;
+        }
+        .calendar-day.today {
+            background: rgba(212, 184, 168, 0.2);
+            font-weight: 600;
+            border: 1px solid var(--accent-dark);
+        }
+        .calendar-day.selected {
+            background: var(--accent-dark);
+            color: #fff;
+            font-weight: 600;
+        }
+        .calendar-day.selected .cal-dot {
+            background: rgba(255, 255, 255, 0.8);
+        }
+        .calendar-day .cal-dot {
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: var(--accent-dark);
+            margin-top: 1px;
+            display: none;
+        }
+        .calendar-day.has-record .cal-dot {
+            display: block;
+        }
+        .calendar-day.selected .cal-dot {
+            display: block;
+            background: rgba(255, 255, 255, 0.8);
+        }
+
+        /* ===== 动画 ===== */
+        @keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(18px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* ===== Toast ===== */
+        .toast {
+            position: fixed;
+            bottom: 110px;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            background: rgba(60, 50, 45, 0.8);
+            backdrop-filter: blur(10px);
+            color: #fff;
+            padding: 12px 28px;
+            border-radius: 40px;
+            font-size: 14px;
+            font-weight: 400;
+            letter-spacing: 0.5px;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.4s ease;
+            z-index: 300;
+            pointer-events: none;
+            white-space: nowrap;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .toast.show {
+            opacity: 1;
+            visibility: visible;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* ===== 响应式 ===== */
+        @media (max-width: 480px) {
+            .app-container {
+                padding: 12px 12px 0;
+            }
+            .slide-card .date-main {
+                font-size: 19px;
+            }
+            .slide-card .quote-text {
+                font-size: 16px;
+            }
+            .record-card .record-text {
+                font-size: 15px;
+            }
+            .modal {
+                padding: 20px 16px 22px;
+            }
+            .fab {
+                width: 58px;
+                height: 58px;
+                font-size: 28px;
+                bottom: 24px;
+            }
+            .toast {
+                bottom: 96px;
+                font-size: 13px;
+                padding: 10px 22px;
+                white-space: normal;
+                max-width: 80%;
+                text-align: center;
+            }
+            .date-navigation {
+                padding: 8px 12px;
+                flex-wrap: nowrap;
+            }
+            .date-navigation .nav-date {
+                font-size: 13px;
+            }
+            .mood-btn,
+            .weather-btn {
+                width: 40px;
+                height: 40px;
+                font-size: 20px;
+            }
+            .weather-btn {
+                font-size: 18px;
+            }
+            .theme-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .custom-bg-area .bg-actions {
+                flex-direction: column;
+                align-items: center;
+            }
+            .calendar-day {
+                font-size: 14px;
+            }
+            .calendar-header .cal-month-year {
+                font-size: 16px;
+            }
+            .header-btn {
+                width: 32px;
+                height: 32px;
+                font-size: 13px;
+            }
+            .view-content .view-images-grid .grid-item {
+                aspect-ratio: 1/1;
+            }
+            .view-content .view-images-grid.count-1 .grid-item {
+                aspect-ratio: 16/9;
+            }
+            .image-preview-overlay .preview-close {
+                top: 12px;
+                right: 12px;
+                width: 36px;
+                height: 36px;
+                font-size: 24px;
+            }
+            .year-picker-box .year-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+            .multi-upload-area .image-thumbnails {
+                grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+            }
+        }
+        @media (min-width: 600px) {
+            .app-container {
+                padding: 28px 20px 0;
+            }
+            .slide-card .date-main {
+                font-size: 26px;
+            }
+            .slide-card .quote-text {
+                font-size: 20px;
+            }
+        }
+
+       /* ===== PDF导出时的临时样式（修复：图片保持比例，容器自适应） ===== */
+.pdf-export-wrap {
+    background: #fff;
+    padding: 24px 20px;
+    border-radius: 12px;
+    max-width: 500px;
+    margin: 0 auto;
+    font-family: -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+}
+.pdf-export-wrap .pdf-images-grid {
+    display: grid;
+    gap: 4px;
+    margin-bottom: 14px;
+    border-radius: 8px;
+    background: #f0ebe6;
+    border: 1px solid #eee;
+    /* 行高自动，由内容撑开 */
+    grid-auto-rows: auto;
+}
+/* 每个图片格子：flex 居中，高度由图片决定，不裁剪 */
+.pdf-export-wrap .pdf-images-grid .pdf-grid-item {
+    overflow: visible;          /* 允许图片完全显示，不裁剪 */
+    background: #f0ebe6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: auto;               /* 由内容撑开 */
+    padding: 2px;               /* 微小间距，视觉更舒服（可选） */
+}
+/* 图片本身：保持原始比例，不拉伸，不裁剪 */
+.pdf-export-wrap .pdf-images-grid .pdf-grid-item img {
+    max-width: 100%;
+    height: auto;               /* 高度自动，保持比例 */
+    display: block;
+    background: #f0ebe6;
+    object-fit: unset;          /* 彻底移除任何缩放干扰 */
+}
+/* 网格列数：根据图片数量分配（不变） */
+.pdf-export-wrap .pdf-images-grid.count-1 {
+    grid-template-columns: 1fr;
+}
+.pdf-export-wrap .pdf-images-grid.count-2 {
+    grid-template-columns: 1fr 1fr;
+}
+.pdf-export-wrap .pdf-images-grid.count-3 {
+    grid-template-columns: 1fr 1fr 1fr;
+}
+.pdf-export-wrap .pdf-images-grid.count-4 {
+    grid-template-columns: 1fr 1fr;
+}
+.pdf-export-wrap .pdf-images-grid.count-5,
+.pdf-export-wrap .pdf-images-grid.count-6,
+.pdf-export-wrap .pdf-images-grid.count-7,
+.pdf-export-wrap .pdf-images-grid.count-8,
+.pdf-export-wrap .pdf-images-grid.count-9 {
+    grid-template-columns: 1fr 1fr 1fr;
+}
+
+ .pdf-export-wrap .pdf-noimage {
+            width: 100%;
+            height: 120px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f5f0eb;
+            color: #b5a59d;
+            font-size: 36px;
+            border-radius: 8px;
+            margin-bottom: 14px;
+            border: 1px solid #eee;
+        }
+        .pdf-export-wrap .pdf-icons {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 10px;
+            font-size: 26px;
+        }
+        .pdf-export-wrap .pdf-text {
+            font-size: 16px;
+            line-height: 1.8;
+            color: #4d403a;
+            white-space: pre-wrap;
+            word-break: break-word;
+            padding: 8px 0 14px;
+            border-bottom: 1px solid #eee;
+            margin-bottom: 12px;
+        }
+        .pdf-export-wrap .pdf-text-empty {
+            color: #b5a59d;
+            font-style: italic;
+        }
+        .pdf-export-wrap .pdf-meta {
+            font-size: 13px;
+            color: #8a7a72;
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        .pdf-export-wrap .pdf-meta span {
+            color: #b5a59d;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ===== 应用容器 ===== -->
+    <div class="app-container" id="app">
+
+        <!-- 顶部导航 -->
+        <header class="app-header">
+            <div class="app-title">
+                <span class="sparkle">✦</span>
+                碎碎念
+                <span class="sub">· 小记</span>
+            </div>
+            <div class="header-actions">
+                <button class="header-btn" id="settingsBtn" title="设置" aria-label="设置">⚙️</button>
+                <button class="header-btn" id="clearAllBtn" title="清空所有记录" aria-label="清空记录">🗑</button>
+            </div>
+        </header>
+
+        <!-- ===== 合并卡片：日期 + 每日一语 ===== -->
+        <div class="slide-card" id="slideCard">
+            <div class="card-inner" id="slideInner">
+                <div class="date-main">
+                    <span id="dateFull"></span>
+                    <span class="weekday" id="weekday"></span>
+                </div>
+                <div class="date-sub" id="dateSub">📅 记录生活的每一天</div>
+                <div class="quote-block">
+                    <span class="quote-mark">"</span>
+                    <div class="quote-text" id="quoteText">今天也是充满希望的一天。</div>
+                    <div class="quote-source">—— 每日💖语</div>
+                </div>
+                <div class="slide-hint"><span>◀ 左右滑动切换日期 ▶</span></div>
+            </div>
+        </div>
+
+        <!-- ===== 日期导航 ===== -->
+        <div class="date-navigation" id="dateNavigation">
+            <button class="nav-btn" id="prevDayBtn" aria-label="前一天">
+                <span class="arrow">◀</span>
+            </button>
+            <span class="nav-date" id="navDateDisplay">
+                📅 今天
+                <span class="sub-label" id="navSubLabel"></span>
+            </span>
+            <button class="nav-btn" id="nextDayBtn" aria-label="后一天">
+                <span class="arrow">▶</span>
+            </button>
+            <button class="nav-clear" id="clearFilterBtn" aria-label="显示全部" title="显示全部记录">⊘</button>
+        </div>
+
+        <!-- 列表标题 -->
+        <div class="list-header">
+            <h2>📖 拾光胶囊</h2>
+            <span class="count" id="recordCount">0 篇</span>
+        </div>
+
+        <!-- 记录列表 -->
+        <div class="records-list" id="recordsList">
+            <!-- 由 JS 渲染 -->
+        </div>
+
+    </div>
+
+    <!-- ===== 浮动添加按钮 ===== -->
+    <button class="fab" id="fabBtn" aria-label="添加记录">
+        <span class="fab-icon">＋</span>
+    </button>
+
+    <!-- ===== 记录模态框（添加） ===== -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>✎ 记录此刻</h3>
+                <button class="modal-close" id="modalClose">✕</button>
+            </div>
+            <div class="selector-group">
+                <span class="selector-label">💭 今天的心情</span>
+                <div class="mood-grid" id="moodGrid"></div>
+            </div>
+            <div class="selector-group">
+                <span class="selector-label">🌤️ 今天的天气</span>
+                <div class="weather-grid" id="weatherGrid"></div>
+            </div>
+
+            <!-- 多图上传区域 -->
+            <div class="multi-upload-area" id="uploadArea">
+                <div class="upload-toolbar">
+                    <button class="upload-btn" id="addImagesBtn">📎 添加图片</button>
+                    <span class="upload-hint-text" id="uploadHint">最多 9 张</span>
+                </div>
+                <div class="image-thumbnails" id="imageThumbnails"></div>
+                <div class="max-hint" id="maxHint"></div>
+                <input type="file" id="fileInput" accept="image/*" multiple style="display:none;" />
+            </div>
+
+            <textarea class="text-input" id="textInput" placeholder="写下此刻的心情… 时光会记得。" rows="4"></textarea>
+            <div class="btn-group">
+                <button class="btn-cancel" id="btnCancel">取消</button>
+                <button class="btn-save" id="btnSave">✧ 保存记录</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== 查看模态框 ===== -->
+    <div class="modal-overlay" id="viewModalOverlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>📖 阅全文</h3>
+                <button class="modal-close" id="viewModalClose">✕</button>
+            </div>
+            <div class="view-content" id="viewContent">
+                <!-- 由 JS 动态渲染 -->
+            </div>
+            <div class="btn-group">
+                <button class="btn-pdf" id="viewPdfBtn">📄 导出</button>
+                <button class="btn-edit" id="viewEditBtn">✎ 编辑</button>
+                <button class="btn-cancel" id="viewCloseBtn">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== 编辑模态框 ===== -->
+    <div class="modal-overlay" id="editModalOverlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>✎ 编辑记录</h3>
+                <button class="modal-close" id="editModalClose">✕</button>
+            </div>
+            <div class="selector-group">
+                <span class="selector-label">💭 心情</span>
+                <div class="mood-grid" id="editMoodGrid"></div>
+            </div>
+            <div class="selector-group">
+                <span class="selector-label">🌤️ 天气</span>
+                <div class="weather-grid" id="editWeatherGrid"></div>
+            </div>
+
+            <!-- 编辑多图上传 -->
+            <div class="multi-upload-area" id="editUploadArea">
+                <div class="upload-toolbar">
+                    <button class="upload-btn" id="editAddImagesBtn">📎 添加图片</button>
+                    <span class="upload-hint-text" id="editUploadHint">最多 9 张</span>
+                </div>
+                <div class="image-thumbnails" id="editImageThumbnails"></div>
+                <div class="max-hint" id="editMaxHint"></div>
+                <input type="file" id="editFileInput" accept="image/*" multiple style="display:none;" />
+            </div>
+
+            <textarea class="text-input" id="editTextInput" placeholder="写点什么…" rows="4"></textarea>
+            <div class="btn-group">
+                <button class="btn-danger" id="editDeleteBtn">🗑 删除</button>
+                <button class="btn-cancel" id="editCancel">取消</button>
+                <button class="btn-save" id="editSave">✧ 保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== 图片全屏预览 ===== -->
+    <div class="image-preview-overlay" id="imagePreviewOverlay">
+        <img class="preview-image" id="previewImage" alt="图片预览" />
+        <button class="preview-close" id="previewClose">✕</button>
+        <button class="preview-nav prev" id="previewPrev">‹</button>
+        <button class="preview-nav next" id="previewNext">›</button>
+        <div class="preview-counter" id="previewCounter"></div>
+    </div>
+
+    <!-- ===== 年份选择器 ===== -->
+    <div class="year-picker-overlay" id="yearPickerOverlay">
+        <div class="year-picker-box">
+            <div class="picker-title">📅 选择年份</div>
+            <div class="year-grid" id="yearGrid"></div>
+            <div style="text-align:center; margin-top:14px;">
+                <button class="btn-cancel" id="yearPickerClose" style="padding:6px 24px; border-radius:30px; border:1px solid var(--card-border); background:rgba(255,255,255,0.4); font-size:14px; cursor:pointer;">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== 设置模态框 ===== -->
+    <div class="modal-overlay" id="settingsOverlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>⚙️ 个性化设置</h3>
+                <button class="modal-close" id="settingsClose">✕</button>
+            </div>
+            <div class="setting-group">
+                <span class="setting-label">🎨 预设主题</span>
+                <div class="theme-grid" id="themeGrid"></div>
+            </div>
+            <div class="setting-group">
+                <span class="setting-label">🖼️ 自定义背景图片</span>
+                <div class="custom-bg-area" id="customBgArea">
+                    <img id="customBgPreview" class="bg-preview" alt="自定义背景预览" />
+                    <div class="bg-actions">
+                        <button class="bg-btn" id="chooseBgBtn">📁 选择图片</button>
+                        <button class="bg-btn remove-btn" id="removeBgBtn">🗑️ 移除</button>
+                    </div>
+                    <input type="file" id="customBgInput" accept="image/*" style="display:none;" />
+                    <div style="font-size:12px; color:var(--text-light); margin-top:4px;">支持 JPG / PNG，建议横图</div>
+                </div>
+            </div>
+            <div class="setting-group">
+                <span class="setting-label">✍️ 字体样式</span>
+                <div class="font-options" id="fontOptions"></div>
+            </div>
+            <div class="setting-group">
+                <span class="setting-label">💾 存储管理</span>
+                <div class="storage-info" id="storageInfo">
+                    <span id="storageText">计算中...</span>
+                    <div class="storage-bar"><div class="fill" id="storageFill"></div></div>
+                    <div class="storage-actions">
+                        <button class="storage-btn" id="exportDataBtn">📤 导出数据</button>
+                        <button class="storage-btn" id="importDataBtn">📥 导入数据</button>
+                        <button class="storage-btn" id="clearOldBtn">🧹 清理旧记录</button>
+                        <input type="file" id="importFileInput" accept=".json" style="display:none;" />
+                    </div>
+                </div>
+            </div>
+            <div class="btn-group" style="margin-top: 10px;">
+                <button class="btn-cancel" id="settingsDone">完成</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== 日历模态框 ===== -->
+    <div class="modal-overlay" id="calendarOverlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="calendarTitle">📅 选择日期</h3>
+                <button class="modal-close" id="calendarClose">✕</button>
+            </div>
+            <div class="calendar-container" id="calendarContainer">
+                <div class="calendar-header">
+                    <button class="cal-nav-btn" id="calPrevMonth">◀</button>
+                    <span class="cal-month-year" id="calMonthYear">2025年1月</span>
+                    <button class="cal-nav-btn" id="calNextMonth">▶</button>
+                    <button class="cal-today-btn" id="calToday">今天</button>
+                </div>
+                <div class="calendar-weekdays">
+                    <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
+                </div>
+                <div class="calendar-days" id="calendarDays"></div>
+                <div style="text-align:center; margin-top:12px; font-size:13px; color:var(--text-light);">
+                    <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--accent-dark); margin-right:4px;"></span> 有记录
+                </div>
+                <div style="text-align:center; margin-top:6px; font-size:12px; color:var(--text-light);">点击年月可快速切换年份</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Toast ===== -->
+    <div class="toast" id="toast"></div>
+
+    <!-- ============================================================ -->
+    <!-- JavaScript -->
+    <!-- ============================================================ -->
+    <script>
+        // ============================================================
+        //  1. 配置 & 数据
+        // ============================================================
+
+        const STORAGE_KEY = 'healing_diary_records';
+        const SETTINGS_KEY = 'healing_diary_settings';
+        const MAX_IMAGES = 9;
+
+        // ===== 90条治愈系文案 =====
+        const QUOTES = [
+            "不必借光而行，你亦是星辰。",
+            "万物皆有裂痕，那是光照进来的地方。",
+            "允许一切发生，允许自己偶尔枯萎，再慢慢开花。",
+            "你配得上这世间所有的温柔与美好，哪怕现在还没有，也正在路上。",
+            "别慌，月亮也偶尔在大海某处迷茫。",
+            "慢慢来，谁不是一边跌倒，一边学着奔跑。",
+            "接纳自己的不完美，那是你独一无二的纹理。",
+            "你不需要成为谁的光，做好自己的小太阳就很好。",
+            "今天的不开心就到此为止，明天依然光芒万丈。",
+            "爱自己，是终身浪漫的开始。",
+            "一杯热茶，一本闲书，便是人间好时节。",
+            "小猫的呼噜声，是世界上最治愈的白噪音。",
+            "傍晚的风很轻，街头的欢笑声很多，日子平淡而可爱。",
+            "好好吃饭，按时睡觉，生活自会给你答案。",
+            "被冬天包裹的温暖，是捧在手心的烤红薯。",
+            "偶尔虚度光阴，是给灵魂放个假。",
+            "把普通的烟火过得精致，让每一个平凡的日子都溢满欢喜。",
+            "下雨天的被窝，是造物主藏起来的温柔乡。",
+            "闻到刚出炉的面包香，觉得人间又值得了。",
+            "换上干净的床单，阳光的味道能一切。",
+            "把烦恼丢进风里，风会把它带去远方。",
+            "晒太阳，看云卷云舒，这是宇宙免费发放的疗愈能量。",
+            "花开不是为了花落，而是为了绚烂那一刻。",
+            "森林里的绿意，足以洗涤满身的尘埃。",
+            "听听雨声，那是天空在为你谱写安眠曲。",
+            "星空之所以美丽，是因为在无边的黑夜里，依然有点点微光。",
+            "山海自有归期，风雨自有相逢。",
+            "捡一片落叶，收藏一整个秋天的浪漫。",
+            "去海边走走，让海浪带走你的心事。",
+            "每一朵云，都是天空写给大地的情书。",
+            "被人惦记的感觉，比冬天的暖炉还要炽热。",
+            "友谊是两颗心真诚相待，而不是一颗心对另一颗心的敲打。",
+            "你笑起来，乌云都散了，甜得像融化的棉花糖。",
+            "愿你身旁有人，肩头有灯，眼里有光。",
+            "温柔的人，是上天派来的止痛药。",
+            "和舒服的人在一起，就是最好的养生。",
+            "爱是疲惫生活中的英雄梦想。",
+            "因为有人懂你的奇奇怪怪，所以愿意陪你可可爱爱。",
+            "拥抱一个吧，可以治愈所有的不开心。",
+            "你的存在，本身就是对某些人而言最温暖的礼物。",
+            "凡是过往，皆为序章。",
+            "别怕，无论现在多难，明天太阳依旧会升起。",
+            "一切都会好起来的，即使不是在今天。",
+            "生活坏到一定程度就会好起来，因为它无法更坏。",
+            "请相信，这个世界上真的有人在过着你想要的生活。",
+            "迷路就是走路的一部分，走错了，才能看见意料之外的风景。",
+            "勇敢一点，反正你也不能活着离开这个世界。",
+            "那些打不倒你的，终将使你更强大。",
+            "万物皆有回转，一切终有回甘。",
+            "走下去，前面有光。",
+            "少一些内心投射，多一些允许发生。",
+            "把期待值降到最低，所有的遇见都是惊喜。",
+            "心简单，世界就简单，幸福才会生长。",
+            "有时候，放下不是放弃，而是为了更好地拿起。",
+            "与其互为人间，不如自成宇宙。",
+            "快乐是一种本事，不是一种状态。",
+            "别用别人的错误惩罚自己，你值得被温柔以待。",
+            "向外求，求而不得；向内求，源源不断。",
+            "最清晰的脚印，印在最泥泞的路上。",
+            "所谓无底深渊，下去，也是前程万里。",
+            "长大不是变得冷漠，而是变得温柔。",
+            "学会和过去的自己和解，拥抱那个受了伤的小孩。",
+            "我们都在奔赴不同的人生，但都在同频奔跑。",
+            "成长就是，可以笑着讲出曾经让你哭的瞬间。",
+            "你要做一个不动声色的大人了，但不妨碍你心里住着那个小孩。",
+            "能够治愈你的，从来不是时间，而是你内心的释怀。",
+            "我们终其一生，就是要摆脱他人的期待，找到真正的自己。",
+            "伤口是光照进你身体的地方。",
+            "你的任务，就是珍惜你自己的人生，而且要比之前更加珍惜。",
+            "愿你出走半生，归来仍是少年。",
+            "一个人的时候，和孤独签下体面的协议。",
+            "享受独处，是灵魂开始丰盈的信号。",
+            "安静地做自己，让世界发现你。",
+            "在自己的世界里独善其身，在别人的世界里顺其自然。",
+            "独处是一个人的清欢，是精神最好的休憩地。",
+            "把自己还给自己，把别人还给别人。",
+            "高质量的独处，胜过低质量的社交。",
+            "一个人走路，是和地球的单独约会。",
+            "学会独处，是成年人最高级的自律。",
+            "真正的平静，不是避开车马喧嚣，而是在心中修篱种菊。",
+            "温柔要有，但不是妥协，我们要在安静中，不慌不忙地坚强。",
+            "用柔软的心，去对抗这个坚硬的世界。",
+            "最有力的武器，是温柔和耐心。",
+            "像对待花瓣一样对待自己，轻拿轻放。",
+            "温柔待人，也被世界温柔以待。",
+            "所有的晦暗都留给过往，从遇见你开始，凛冬散尽，星河长明。",
+            "愿你的灵魂正直而勇敢，愿你的旅途精彩而无憾。",
+            "你那么温柔，走两步风都会甜一点。",
+            "以最大的平静，去爱我们不确定的生活。",
+            "温柔半两，从容一生。"
+        ];
+
+        const MOODS = ['😊', '😢', '😡', '😴', '❤️', '😁', '😌', '😎', '🥹', '😵‍💫', '😒', '😘', '🤐', '🤔', '🥰', '😭', '🤯', '☕'];
+        const WEATHERS = ['☀️', '⛅', '🌤️', '🌧️', '☃️', '⛈️', '☔', '❄️', '🌜', '🌪️', '🌫️', '🌈'];
+
+        const THEMES = [
+            { id: 'default', name: '原色', dot: '#f7f2ed' },
+            { id: 'dawn', name: '晨曦', dot: '#fdf6ee' },
+            { id: 'dusk', name: '暮色', dot: '#e8d5c4' },
+            { id: 'forest', name: '森林', dot: '#dce8d5' },
+            { id: 'ocean', name: '海洋', dot: '#d5e4ed' },
+            { id: 'peach', name: '蜜桃', dot: '#fde8e0' },
+            { id: 'lavender', name: '薰衣草', dot: '#ece4f0' }
+        ];
+
+        const FONTS = [
+            { id: 'system', name: '系统默认', sample: '系统字体', css: '-apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif' },
+            { id: 'rounded', name: '圆体', sample: '圆润可爱', css: '"PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", sans-serif' },
+            { id: 'handwriting', name: '手写体', sample: '行云流水', css: '"ZCOOL KuaiLe", "Comic Sans MS", cursive, sans-serif' },
+            { id: 'kai', name: '楷体', sample: '端正典雅', css: '"STKaiti", "KaiTi", "楷体", serif' }
+        ];
+
+        // ============================================================
+        //  2. 工具函数
+        // ============================================================
+
+        function getToday() {
+            const d = new Date();
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        }
+
+        function getWeekday(dateStr) {
+            const d = new Date(dateStr + 'T00:00:00');
+            return ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'][d.getDay()];
+        }
+
+        function formatDateDisplay(dateStr) {
+            if (!dateStr) return '';
+            const p = dateStr.split('-');
+            return `${p[0]}年${parseInt(p[1])}月${parseInt(p[2])}日`;
+        }
+
+        function getQuoteForDate(dateStr) {
+            if (!dateStr) dateStr = getToday();
+            const seed = dateStr.split('-').join('');
+            const index = parseInt(seed) % QUOTES.length;
+            return QUOTES[index];
+        }
+
+        function getTimeStr() {
+            const d = new Date();
+            return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+        }
+
+        function generateId() {
+            return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        }
+
+        function parseDate(dateStr) {
+            if (!dateStr) return new Date();
+            return new Date(dateStr + 'T00:00:00');
+        }
+
+        function addDays(dateStr, days) {
+            const d = parseDate(dateStr);
+            d.setDate(d.getDate() + days);
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        }
+
+        function isToday(dateStr) {
+            return dateStr === getToday();
+        }
+
+        function showToast(msg) {
+            const el = document.getElementById('toast');
+            el.textContent = msg;
+            el.classList.add('show');
+            clearTimeout(window.toastTimer);
+            window.toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+        }
+
+        // ============================================================
+        //  3. 数据管理
+        // ============================================================
+
+        function loadRecords() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (raw) {
+                    const data = JSON.parse(raw);
+                    if (Array.isArray(data)) {
+                        return data.map(r => {
+                            if (r.image && !r.images) {
+                                r.images = [r.image];
+                                delete r.image;
+                            }
+                            if (!r.images) r.images = [];
+                            if (!Array.isArray(r.images)) r.images = [r.images];
+                            return r;
+                        });
+                    }
+                }
+            } catch (_) {}
+            return [];
+        }
+
+        function saveRecords(records) {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+            } catch (e) {
+                if (e.name === 'QuotaExceededError' || e.code === 22) {
+                    showToast('⚠️ 存储空间已满，请导出备份后清理旧记录');
+                }
+                throw e;
+            }
+        }
+
+        function addRecord(text, imagesArray, mood, weather) {
+            try {
+                const records = loadRecords();
+                const dateStr = getToday();
+                const timeStr = getTimeStr();
+                const validImages = (imagesArray || []).filter(img => img && img.length > 100);
+                const record = {
+                    id: generateId(),
+                    date: dateStr,
+                    time: timeStr,
+                    text: text.trim() || '',
+                    images: validImages.slice(0, MAX_IMAGES),
+                    mood: mood || '😊',
+                    weather: weather || '☀️',
+                    timestamp: Date.now()
+                };
+                records.unshift(record);
+                saveRecords(records);
+                return record;
+            } catch (e) {
+                console.error('保存记录失败:', e);
+                showToast('❌ 保存失败，请检查存储空间');
+                return null;
+            }
+        }
+
+        function updateRecord(id, text, imagesArray, mood, weather) {
+            let records = loadRecords();
+            const index = records.findIndex(r => r.id === id);
+            if (index === -1) return null;
+            const validImages = (imagesArray || []).filter(img => img && img.length > 100);
+            records[index].text = text.trim() || '';
+            records[index].images = validImages.slice(0, MAX_IMAGES);
+            records[index].mood = mood || '😊';
+            records[index].weather = weather || '☀️';
+            saveRecords(records);
+            return records[index];
+        }
+
+        function deleteRecord(id) {
+            let records = loadRecords();
+            records = records.filter(r => r.id !== id);
+            saveRecords(records);
+            return records;
+        }
+
+        function clearAllRecords() {
+            saveRecords([]);
+        }
+
+        function getRecordsByDate(filterDate) {
+            let records = loadRecords();
+            if (filterDate) {
+                records = records.filter(r => r.date === filterDate);
+            }
+            const groups = {};
+            records.forEach(r => {
+                if (!groups[r.date]) groups[r.date] = [];
+                groups[r.date].push(r);
+            });
+            const sortedDates = Object.keys(groups).sort((a, b) => b.localeCompare(a));
+            const result = [];
+            sortedDates.forEach(date => {
+                result.push({ date, records: groups[date] });
+            });
+            return result;
+        }
+
+        function getRecordDates() {
+            const records = loadRecords();
+            const dates = new Set();
+            records.forEach(r => dates.add(r.date));
+            return dates;
+        }
+
+        function getRecordById(id) {
+            const records = loadRecords();
+            return records.find(r => r.id === id) || null;
+        }
+
+        function getStorageSize() {
+            let total = 0;
+            for (const key in localStorage) {
+                if (localStorage.hasOwnProperty(key)) {
+                    total += localStorage[key].length * 2;
+                }
+            }
+            return total;
+        }
+
+        function formatBytes(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / 1048576).toFixed(1) + ' MB';
+        }
+
+        // ============================================================
+        //  4. 设置管理
+        // ============================================================
+
+        function loadSettings() {
+            try {
+                const raw = localStorage.getItem(SETTINGS_KEY);
+                if (raw) {
+                    const settings = JSON.parse(raw);
+                    if (!settings.theme) settings.theme = 'default';
+                    if (!settings.font) settings.font = 'system';
+                    if (!settings.customBackground) settings.customBackground = '';
+                    return settings;
+                }
+            } catch (_) {}
+            return { theme: 'default', font: 'system', customBackground: '' };
+        }
+
+        function saveSettings(settings) {
+            localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+        }
+
+        function applyBackground(settings) {
+            const body = document.body;
+            THEMES.forEach(t => body.classList.remove(`theme-${t.id}`));
+            body.classList.remove('theme-default');
+
+            if (settings.customBackground && settings.customBackground.length > 100) {
+                body.style.background =
+                    `linear-gradient(rgba(255,255,255,0.6), rgba(255,255,255,0.6)), url(${settings.customBackground}) center/cover no-repeat fixed`;
+            } else {
+                body.style.background = '';
+                const themeId = settings.theme || 'default';
+                body.classList.add(`theme-${themeId}`);
+                if (themeId === 'default') body.classList.add('theme-default');
+            }
+        }
+
+        function applyTheme(themeId) {
+            const settings = loadSettings();
+            settings.customBackground = '';
+            settings.theme = themeId;
+            saveSettings(settings);
+            applyBackground(settings);
+            document.querySelectorAll('.theme-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.theme === themeId);
+            });
+            updateCustomBgUI();
+        }
+
+        function applyCustomBackground(imageData) {
+            const settings = loadSettings();
+            settings.customBackground = imageData;
+            saveSettings(settings);
+            applyBackground(settings);
+            document.querySelectorAll('.theme-btn').forEach(btn => btn.classList.remove('active'));
+            updateCustomBgUI();
+            showToast('✅ 自定义背景已应用');
+        }
+
+        function clearCustomBackground() {
+            const settings = loadSettings();
+            if (settings.customBackground) {
+                settings.customBackground = '';
+                if (!settings.theme) settings.theme = 'default';
+                saveSettings(settings);
+                applyBackground(settings);
+                updateCustomBgUI();
+                document.querySelectorAll('.theme-btn').forEach(btn => {
+                    btn.classList.toggle('active', btn.dataset.theme === settings.theme);
+                });
+                showToast('已移除自定义背景');
+            } else {
+                showToast('当前没有自定义背景');
+            }
+        }
+
+        function applyFont(fontId) {
+            const font = FONTS.find(f => f.id === fontId);
+            if (font) {
+                document.documentElement.style.setProperty('--app-font', font.css);
+                const settings = loadSettings();
+                settings.font = fontId;
+                saveSettings(settings);
+                document.querySelectorAll('.font-btn').forEach(btn => {
+                    btn.classList.toggle('active', btn.dataset.font === fontId);
+                });
+            }
+        }
+
+        // ============================================================
+        //  5. 图片压缩
+        // ============================================================
+
+        function compressImage(file, maxWidth = 900, quality = 0.7) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        let w = img.width,
+                            h = img.height;
+                        if (w > maxWidth) { h = h * maxWidth / w;
+                            w = maxWidth; }
+                        const canvas = document.createElement('canvas');
+                        canvas.width = w;
+                        canvas.height = h;
+                        const ctx = canvas.getContext('2d');
+                        ctx.imageSmoothingEnabled = true;
+                        ctx.imageSmoothingQuality = 'high';
+                        ctx.drawImage(img, 0, 0, w, h);
+                        try {
+                            resolve(canvas.toDataURL('image/jpeg', quality));
+                        } catch (err) { reject(err); }
+                    };
+                    img.onerror = () => reject(new Error('图片加载失败'));
+                    img.src = e.target.result;
+                };
+                reader.onerror = () => reject(new Error('文件读取失败'));
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // ============================================================
+        //  6. 核心UI渲染
+        // ============================================================
+
+        let currentFilterDate = getToday();
+
+        function renderSlideCard() {
+            const date = currentFilterDate || getToday();
+            const displayDate = formatDateDisplay(date);
+            const weekday = getWeekday(date);
+            const quote = getQuoteForDate(date);
+            const emojis = ['🌤', '🌿', '🌸', '☀️', '🌱', '🍃', '🌺', '🌻'];
+            const idx = parseInt(date.split('-').join('')) % emojis.length;
+
+            document.getElementById('dateFull').textContent = displayDate;
+            document.getElementById('weekday').textContent = weekday;
+            document.getElementById('dateSub').textContent = `📅 记录生活的每一天  ${emojis[idx]}`;
+            document.getElementById('quoteText').textContent = quote;
+        }
+
+        function renderNavigation() {
+            const displayEl = document.getElementById('navDateDisplay');
+            const subLabel = document.getElementById('navSubLabel');
+            if (!displayEl) return;
+
+            if (currentFilterDate) {
+                const weekday = getWeekday(currentFilterDate);
+                const isTodayFlag = isToday(currentFilterDate);
+                const label = isTodayFlag ? '今天' : formatDateDisplay(currentFilterDate);
+                displayEl.innerHTML = `📅 ${label} <span class="sub-label">${weekday}</span>`;
+                if (subLabel) subLabel.textContent = weekday;
+            } else {
+                displayEl.innerHTML = `📅 全部记录 <span class="sub-label">· 共 ${loadRecords().length} 篇</span>`;
+                if (subLabel) subLabel.textContent = '';
+            }
+        }
+
+        // ===== 生成图片网格 HTML 字符串（带 data-record-id） =====
+        function createImagesGridHTML(images, recordId, containerClass = 'record-images-grid', itemClass = 'grid-item') {
+            const valid = (images || []).filter(img => img && img.length > 100);
+            if (valid.length === 0) return '';
+
+            const count = Math.min(valid.length, MAX_IMAGES);
+            let html = `<div class="${containerClass} count-${count}" data-record-id="${recordId}">`;
+            for (let i = 0; i < count; i++) {
+                const src = valid[i];
+                html += `
+                    <div class="${itemClass}" data-index="${i}">
+                        <img src="${src}" alt="图片 ${i+1}" loading="lazy" />
+                    </div>
+                `;
+            }
+            html += `</div>`;
+            return html;
+        }
+
+        // 查看模态框专用：生成不带 data-record-id 的网格（使用 viewingRecordId 全局变量）
+        function createViewImagesGridHTML(images, containerClass = 'view-images-grid', itemClass = 'grid-item') {
+            const valid = (images || []).filter(img => img && img.length > 100);
+            if (valid.length === 0) return '';
+
+            const count = Math.min(valid.length, MAX_IMAGES);
+            let html = `<div class="${containerClass} count-${count}">`;
+            for (let i = 0; i < count; i++) {
+                const src = valid[i];
+                html += `
+                    <div class="${itemClass}" data-index="${i}">
+                        <img src="${src}" alt="图片 ${i+1}" loading="lazy" />
+                    </div>
+                `;
+            }
+            html += `</div>`;
+            return html;
+        }
+
+        function renderRecords() {
+            const container = document.getElementById('recordsList');
+            const groups = getRecordsByDate(currentFilterDate);
+            const allRecords = loadRecords();
+            const filtered = currentFilterDate ? allRecords.filter(r => r.date === currentFilterDate) : allRecords;
+            const total = filtered.length;
+            document.getElementById('recordCount').textContent = `${total} 篇`;
+
+            if (total === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <span class="empty-icon">${currentFilterDate ? '📭' : '🌱'}</span>
+                        <div class="empty-title">${currentFilterDate ? '这一天还没有记录' : '还没有记录呢'}</div>
+                        <div class="empty-desc">${currentFilterDate ? '试试切换日期或点击 + 添加' : '点击右下角的 + 按钮<br />记录下今天的美好瞬间吧'}</div>
+                        <button class="import-backup-btn" id="quickImportBtn">📥 导入备份</button>
+                        <div style="font-size:12px; color:var(--text-light); margin-top:6px;">从之前导出的 JSON 文件恢复数据</div>
+                    </div>
+                `;
+                const quickBtn = document.getElementById('quickImportBtn');
+                if (quickBtn) {
+                    quickBtn.addEventListener('click', () => {
+                        document.getElementById('importFileInput').click();
+                    });
+                }
+                renderNavigation();
+                return;
+            }
+
+            let html = '';
+            groups.forEach(group => {
+                const displayDate = formatDateDisplay(group.date);
+                const weekday = getWeekday(group.date);
+                html += `
+                    <div style="padding:6px 4px 4px; font-size:14px; color:var(--text-secondary); font-weight:500; letter-spacing:0.5px; display:flex; align-items:center; gap:8px;">
+                        <span>${displayDate}</span>
+                        <span style="font-weight:400; font-size:12px; color:var(--text-light);">${weekday}</span>
+                        <span style="flex:1; border-bottom:1px dashed var(--card-border);"></span>
+                        <span style="font-size:12px; color:var(--text-light);">${group.records.length} 篇</span>
+                    </div>
+                `;
+                group.records.forEach(r => {
+                    const images = r.images || [];
+                    const validImages = images.filter(img => img && img.length > 100);
+                    const hasImages = validImages.length > 0;
+
+                    let imageHtml = '';
+                    if (hasImages) {
+                        imageHtml = createImagesGridHTML(validImages, r.id, 'record-images-grid', 'grid-item');
+                    } else {
+                        imageHtml = `<div class="record-image-placeholder">📝</div>`;
+                    }
+
+                    const textHtml = r.text ? `<div class="record-text">${escapeHtml(r.text)}</div>` :
+                        `<div class="record-text" style="color:var(--text-light); font-style:italic;">（无文字）</div>`;
+                    const moodEmoji = r.mood || '😊';
+                    const weatherEmoji = r.weather || '☀️';
+
+                    html += `
+                        <div class="record-card visible" data-id="${r.id}">
+                            ${imageHtml}
+                            <div class="record-body">
+                                ${textHtml}
+                                <div class="record-meta">
+                                    <div class="left-meta">
+                                        <span class="mood-badge">${moodEmoji}</span>
+                                        <span class="weather-badge">${weatherEmoji}</span>
+                                        <span class="time">
+                                            <span>🕊 ${r.time}</span>
+                                            <span class="dot"></span>
+                                            <span>${r.date}</span>
+                                        </span>
+                                    </div>
+                                    <button class="record-delete" data-id="${r.id}" aria-label="删除记录">✕</button>
+                                </div>
+                                <div class="edit-hint">👆 点击查看全文</div>
+                            </div>
+                        </div>
+                    `;
+                });
+            });
+            container.innerHTML = html;
+
+            // 绑定删除
+            container.querySelectorAll('.record-delete').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const id = btn.dataset.id;
+                    if (confirm('确定要删除这条记录吗？')) {
+                        deleteRecord(id);
+                        renderRecords();
+                        renderNavigation();
+                        showToast('已删除记录 ✧');
+                    }
+                });
+            });
+
+            // 绑定卡片点击 → 查看模态框（但图片点击由委托处理）
+            container.querySelectorAll('.record-card').forEach(card => {
+                card.addEventListener('click', (e) => {
+                    if (e.target.closest('.grid-item') || e.target.closest('.record-delete')) return;
+                    const id = card.dataset.id;
+                    if (id) openViewModal(id);
+                });
+            });
+
+            renderNavigation();
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // ============================================================
+        //  7. 滑动卡片逻辑
+        // ============================================================
+
+        let slideStartX = 0;
+        let slideStartY = 0;
+        let isSliding = false;
+        const slideCard = document.getElementById('slideCard');
+        const slideInner = document.getElementById('slideInner');
+
+        slideCard.addEventListener('touchstart', (e) => {
+            const touch = e.touches[0];
+            slideStartX = touch.clientX;
+            slideStartY = touch.clientY;
+            isSliding = false;
+        }, { passive: true });
+
+        slideCard.addEventListener('touchmove', (e) => {
+            const touch = e.touches[0];
+            const deltaX = touch.clientX - slideStartX;
+            const deltaY = touch.clientY - slideStartY;
+            if (Math.abs(deltaX) > 10 && Math.abs(deltaX) > Math.abs(deltaY) * 0.8) {
+                isSliding = true;
+                slideInner.style.transform = `translateX(${deltaX * 0.2}px)`;
+                slideInner.style.opacity = 1 - Math.min(Math.abs(deltaX) / 300, 0.3);
+            }
+        }, { passive: true });
+
+        slideCard.addEventListener('touchend', (e) => {
+            slideInner.style.transform = '';
+            slideInner.style.opacity = '';
+            if (!isSliding) return;
+            const touch = e.changedTouches[0];
+            const deltaX = touch.clientX - slideStartX;
+            const threshold = 50;
+            if (deltaX < -threshold) goToNextDay();
+            else if (deltaX > threshold) goToPrevDay();
+            isSliding = false;
+        }, { passive: true });
+
+        let mouseDownX = 0,
+            mouseDownY = 0,
+            mouseIsSliding = false;
+        slideCard.addEventListener('mousedown', (e) => {
+            mouseDownX = e.clientX;
+            mouseDownY = e.clientY;
+            mouseIsSliding = false;
+            slideCard.style.cursor = 'grabbing';
+        });
+        slideCard.addEventListener('mousemove', (e) => {
+            if (e.buttons === 0) return;
+            const deltaX = e.clientX - mouseDownX;
+            const deltaY = e.clientY - mouseDownY;
+            if (Math.abs(deltaX) > 10 && Math.abs(deltaX) > Math.abs(deltaY) * 0.8) {
+                mouseIsSliding = true;
+                slideInner.style.transform = `translateX(${deltaX * 0.2}px)`;
+                slideInner.style.opacity = 1 - Math.min(Math.abs(deltaX) / 300, 0.3);
+            }
+        });
+        slideCard.addEventListener('mouseup', (e) => {
+            slideInner.style.transform = '';
+            slideInner.style.opacity = '';
+            slideCard.style.cursor = 'grab';
+            if (!mouseIsSliding) return;
+            const deltaX = e.clientX - mouseDownX;
+            if (deltaX < -50) goToNextDay();
+            else if (deltaX > 50) goToPrevDay();
+            mouseIsSliding = false;
+        });
+        slideCard.addEventListener('mouseleave', () => {
+            slideInner.style.transform = '';
+            slideInner.style.opacity = '';
+            slideCard.style.cursor = 'grab';
+            mouseIsSliding = false;
+        });
+
+        function goToPrevDay() {
+            if (!currentFilterDate) currentFilterDate = getToday();
+            else currentFilterDate = addDays(currentFilterDate, -1);
+            updateAll();
+            showToast(`📅 ${formatDateDisplay(currentFilterDate)}`);
+        }
+
+        function goToNextDay() {
+            if (!currentFilterDate) currentFilterDate = getToday();
+            else currentFilterDate = addDays(currentFilterDate, 1);
+            updateAll();
+            showToast(`📅 ${formatDateDisplay(currentFilterDate)}`);
+        }
+
+        function updateAll() {
+            renderSlideCard();
+            renderRecords();
+            renderNavigation();
+        }
+
+        // ============================================================
+        //  8. 日历组件 + 年份选择器
+        // ============================================================
+
+        let calendarCurrentYear = new Date().getFullYear();
+        let calendarCurrentMonth = new Date().getMonth();
+
+        function renderCalendar(year, month) {
+            const container = document.getElementById('calendarDays');
+            const monthYearEl = document.getElementById('calMonthYear');
+            monthYearEl.textContent = `${year}年${month+1}月`;
+
+            const recordDates = getRecordDates();
+            const firstDay = new Date(year, month, 1);
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const startDayOfWeek = firstDay.getDay();
+            const todayStr = getToday();
+            const selectedDate = currentFilterDate || '';
+
+            let html = '';
+            for (let i = 0; i < startDayOfWeek; i++) {
+                html += `<div class="calendar-day other-month"></div>`;
+            }
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                const isToday = dateStr === todayStr;
+                const isSelected = dateStr === selectedDate;
+                const hasRecord = recordDates.has(dateStr);
+
+                let classes = 'calendar-day';
+                if (isToday) classes += ' today';
+                if (isSelected) classes += ' selected';
+                if (hasRecord) classes += ' has-record';
+
+                html += `
+                    <button class="${classes}" data-date="${dateStr}">
+                        ${d}
+                        <span class="cal-dot"></span>
+                    </button>
+                `;
+            }
+            container.innerHTML = html;
+
+            container.querySelectorAll('.calendar-day[data-date]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const date = btn.dataset.date;
+                    currentFilterDate = date;
+                    updateAll();
+                    closeCalendar();
+                    showToast(`📅 ${formatDateDisplay(date)}`);
+                });
+            });
+        }
+
+        function openCalendar() {
+            document.getElementById('calendarOverlay').classList.add('active');
+            document.body.style.overflow = 'hidden';
+            if (currentFilterDate) {
+                const parts = currentFilterDate.split('-');
+                calendarCurrentYear = parseInt(parts[0]);
+                calendarCurrentMonth = parseInt(parts[1]) - 1;
+            } else {
+                const today = new Date();
+                calendarCurrentYear = today.getFullYear();
+                calendarCurrentMonth = today.getMonth();
+            }
+            renderCalendar(calendarCurrentYear, calendarCurrentMonth);
+        }
+
+        function closeCalendar() {
+            document.getElementById('calendarOverlay').classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        document.getElementById('calPrevMonth').addEventListener('click', () => {
+            calendarCurrentMonth--;
+            if (calendarCurrentMonth < 0) { calendarCurrentMonth = 11;
+                calendarCurrentYear--; }
+            renderCalendar(calendarCurrentYear, calendarCurrentMonth);
+        });
+        document.getElementById('calNextMonth').addEventListener('click', () => {
+            calendarCurrentMonth++;
+            if (calendarCurrentMonth > 11) { calendarCurrentMonth = 0;
+                calendarCurrentYear++; }
+            renderCalendar(calendarCurrentYear, calendarCurrentMonth);
+        });
+        document.getElementById('calToday').addEventListener('click', () => {
+            const today = new Date();
+            calendarCurrentYear = today.getFullYear();
+            calendarCurrentMonth = today.getMonth();
+            renderCalendar(calendarCurrentYear, calendarCurrentMonth);
+        });
+        document.getElementById('calendarClose').addEventListener('click', closeCalendar);
+        document.getElementById('calendarOverlay').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) closeCalendar();
+        });
+
+        // ---- 年份选择器 ----
+        const yearPickerOverlay = document.getElementById('yearPickerOverlay');
+        const yearGrid = document.getElementById('yearGrid');
+        const yearPickerClose = document.getElementById('yearPickerClose');
+
+        function openYearPicker() {
+            const currentYear = calendarCurrentYear;
+            yearGrid.innerHTML = '';
+            const startYear = currentYear - 10;
+            const endYear = currentYear + 10;
+            for (let y = startYear; y <= endYear; y++) {
+                const btn = document.createElement('button');
+                btn.className = 'year-btn' + (y === currentYear ? ' current' : '');
+                btn.textContent = y;
+                btn.addEventListener('click', () => {
+                    calendarCurrentYear = y;
+                    renderCalendar(calendarCurrentYear, calendarCurrentMonth);
+                    closeYearPicker();
+                });
+                yearGrid.appendChild(btn);
+            }
+            yearPickerOverlay.classList.add('active');
+        }
+
+        function closeYearPicker() {
+            yearPickerOverlay.classList.remove('active');
+        }
+
+        document.getElementById('calMonthYear').addEventListener('click', openYearPicker);
+        yearPickerClose.addEventListener('click', closeYearPicker);
+        yearPickerOverlay.addEventListener('click', (e) => {
+            if (e.target === yearPickerOverlay) closeYearPicker();
+        });
+
+        // ============================================================
+        //  9. 图片全屏预览（支持多图切换 + 触摸滑动）
+        // ============================================================
+
+        const previewOverlay = document.getElementById('imagePreviewOverlay');
+        const previewImage = document.getElementById('previewImage');
+        const previewClose = document.getElementById('previewClose');
+        const previewPrev = document.getElementById('previewPrev');
+        const previewNext = document.getElementById('previewNext');
+        const previewCounter = document.getElementById('previewCounter');
+
+        let previewImages = [];
+        let previewIndex = 0;
+
+        // --- 触摸滑动 ---
+        let touchStartX = 0;
+        let touchStartY = 0;
+        let isSwiping = false;
+
+        previewOverlay.addEventListener('touchstart', function(e) {
+            const touch = e.touches[0];
+            touchStartX = touch.clientX;
+            touchStartY = touch.clientY;
+            isSwiping = false;
+        }, { passive: true });
+
+        previewOverlay.addEventListener('touchmove', function(e) {
+            if (previewImages.length <= 1) return;
+            const touch = e.touches[0];
+            const deltaX = touch.clientX - touchStartX;
+            const deltaY = touch.clientY - touchStartY;
+            if (Math.abs(deltaX) > 20 && Math.abs(deltaX) > Math.abs(deltaY) * 0.8) {
+                isSwiping = true;
+            }
+        }, { passive: true });
+
+        previewOverlay.addEventListener('touchend', function(e) {
+            if (!isSwiping || previewImages.length <= 1) return;
+            const touch = e.changedTouches[0];
+            const deltaX = touch.clientX - touchStartX;
+            const threshold = 50;
+            if (deltaX < -threshold) {
+                if (previewIndex < previewImages.length - 1) {
+                    showPreviewImage(previewIndex + 1);
+                }
+            } else if (deltaX > threshold) {
+                if (previewIndex > 0) {
+                    showPreviewImage(previewIndex - 1);
+                }
+            }
+            isSwiping = false;
+        }, { passive: true });
+
+        // 鼠标拖拽支持（PC 调试）
+        let mouseDownX2 = 0,
+            mouseDownY2 = 0,
+            mouseIsSwiping = false;
+        previewOverlay.addEventListener('mousedown', function(e) {
+            if (e.target.closest('.preview-nav') || e.target.closest('.preview-close')) return;
+            mouseDownX2 = e.clientX;
+            mouseDownY2 = e.clientY;
+            mouseIsSwiping = false;
+            previewOverlay.style.cursor = 'grabbing';
+        });
+        previewOverlay.addEventListener('mousemove', function(e) {
+            if (e.buttons === 0 || previewImages.length <= 1) return;
+            const deltaX = e.clientX - mouseDownX2;
+            const deltaY = e.clientY - mouseDownY2;
+            if (Math.abs(deltaX) > 20 && Math.abs(deltaX) > Math.abs(deltaY) * 0.8) {
+                mouseIsSwiping = true;
+            }
+        });
+        previewOverlay.addEventListener('mouseup', function(e) {
+            previewOverlay.style.cursor = 'pointer';
+            if (!mouseIsSwiping || previewImages.length <= 1) return;
+            const deltaX = e.clientX - mouseDownX2;
+            if (deltaX < -50) {
+                if (previewIndex < previewImages.length - 1) showPreviewImage(previewIndex + 1);
+            } else if (deltaX > 50) {
+                if (previewIndex > 0) showPreviewImage(previewIndex - 1);
+            }
+            mouseIsSwiping = false;
+        });
+        previewOverlay.addEventListener('mouseleave', function() {
+            previewOverlay.style.cursor = 'pointer';
+            mouseIsSwiping = false;
+        });
+
+        // --- 核心预览函数 ---
+        function openImagePreview(src, allImages = [], index = 0) {
+            const validAll = (allImages || []).filter(s => s && s.length > 100);
+            if (validAll.length === 0) return;
+
+            let idx = validAll.indexOf(src);
+            if (idx === -1) idx = 0;
+            previewImages = validAll;
+            previewIndex = Math.min(Math.max(idx, 0), previewImages.length - 1);
+
+            const showSrc = previewImages[previewIndex] || previewImages[0];
+            previewImage.src = showSrc;
+            previewOverlay.classList.add('active');
+            document.body.style.overflow = 'hidden';
+            updatePreviewNav();
+            updatePreviewCounter();
+        }
+
+        function closeImagePreview() {
+            previewOverlay.classList.remove('active');
+            document.body.style.overflow = '';
+            setTimeout(() => { previewImage.src = ''; }, 300);
+        }
+
+        function updatePreviewNav() {
+            const total = previewImages.length;
+            previewPrev.classList.toggle('hidden', total <= 1 || previewIndex === 0);
+            previewNext.classList.toggle('hidden', total <= 1 || previewIndex >= total - 1);
+        }
+
+        function updatePreviewCounter() {
+            const total = previewImages.length;
+            previewCounter.textContent = total > 1 ? `${previewIndex+1} / ${total}` : '';
+        }
+
+        function showPreviewImage(index) {
+            if (index < 0 || index >= previewImages.length) return;
+            previewIndex = index;
+            previewImage.src = previewImages[previewIndex];
+            updatePreviewNav();
+            updatePreviewCounter();
+        }
+
+        previewPrev.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (previewIndex > 0) showPreviewImage(previewIndex - 1);
+        });
+        previewNext.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (previewIndex < previewImages.length - 1) showPreviewImage(previewIndex + 1);
+        });
+
+        previewClose.addEventListener('click', closeImagePreview);
+        previewOverlay.addEventListener('click', (e) => {
+            if (e.target === previewOverlay) closeImagePreview();
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && previewOverlay.classList.contains('active')) closeImagePreview();
+            if (e.key === 'ArrowLeft' && previewOverlay.classList.contains('active')) {
+                if (previewIndex > 0) showPreviewImage(previewIndex - 1);
+            }
+            if (e.key === 'ArrowRight' && previewOverlay.classList.contains('active')) {
+                if (previewIndex < previewImages.length - 1) showPreviewImage(previewIndex + 1);
+            }
+        });
+
+        // ============================================================
+        //  10. 查看模态框 + PDF导出（修复：图片保持比例）
+        // ============================================================
+
+        let viewingRecordId = null;
+
+        const viewModalOverlay = document.getElementById('viewModalOverlay');
+        const viewContent = document.getElementById('viewContent');
+        const viewModalClose = document.getElementById('viewModalClose');
+        const viewCloseBtn = document.getElementById('viewCloseBtn');
+        const viewEditBtn = document.getElementById('viewEditBtn');
+        const viewPdfBtn = document.getElementById('viewPdfBtn');
+
+        function openViewModal(recordId) {
+            const record = getRecordById(recordId);
+            if (!record) { showToast('记录不存在'); return; }
+
+            viewingRecordId = recordId;
+            const images = (record.images || []).filter(img => img && img.length > 100);
+            const hasImages = images.length > 0;
+            const mood = record.mood || '😊';
+            const weather = record.weather || '☀️';
+            const text = record.text || '';
+            const date = record.date || '';
+            const time = record.time || '';
+            const displayDate = formatDateDisplay(date);
+            const weekday = getWeekday(date);
+
+            let html = '';
+
+            if (hasImages) {
+                html += createViewImagesGridHTML(images, 'view-images-grid', 'grid-item');
+            } else {
+                html += `
+                    <div style="border-radius:var(--radius-sm); overflow:hidden; margin-bottom:16px; background:#f0ebe6; border:1px solid var(--card-border); display:flex; align-items:center; justify-content:center; height:120px; color:var(--text-light); font-size:40px;">
+                        📝
+                    </div>
+                `;
+            }
+
+            html += `
+                <div class="view-mood">
+                    <span>${mood}</span>
+                    <span class="view-mood-label">此刻的心情</span>
+                </div>
+                <div class="view-weather">
+                    <span>${weather}</span>
+                    <span class="view-weather-label">今天的天气</span>
+                </div>
+            `;
+
+            if (text) {
+                html += `<div class="view-text">${escapeHtml(text)}</div>`;
+            } else {
+                html += `<div class="view-text view-text-empty">（没有文字记录）</div>`;
+            }
+
+            html += `
+                <div class="view-meta">
+                    <span>📅 ${displayDate}</span>
+                    <span class="view-time">${weekday}</span>
+                    <span class="view-time">🕊 ${time}</span>
+                </div>
+            `;
+
+            viewContent.innerHTML = html;
+            viewModalOverlay.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeViewModal() {
+            viewModalOverlay.classList.remove('active');
+            document.body.style.overflow = '';
+            viewingRecordId = null;
+        }
+
+        viewModalClose.addEventListener('click', closeViewModal);
+        viewCloseBtn.addEventListener('click', closeViewModal);
+        viewModalOverlay.addEventListener('click', (e) => {
+            if (e.target === viewModalOverlay) closeViewModal();
+        });
+
+        viewEditBtn.addEventListener('click', () => {
+            const id = viewingRecordId;
+            if (id) {
+                const record = getRecordById(id);
+                if (record) {
+                    closeViewModal();
+                    setTimeout(() => openEditModal(id), 200);
+                } else { showToast('记录已不存在');
+                    closeViewModal(); }
+            } else { showToast('没有选中的记录'); }
+        });
+
+        // ===== PDF导出（修复：图片保持原始比例，不再变形） =====
+        viewPdfBtn.addEventListener('click', async function() {
+            const id = viewingRecordId;
+            if (!id) { showToast('没有选中的记录'); return; }
+            const record = getRecordById(id);
+            if (!record) { showToast('记录已不存在'); return; }
+
+            try {
+                showToast('⏳ 正在生成PDF...');
+
+                const images = (record.images || []).filter(img => img && img.length > 100);
+                const hasImages = images.length > 0;
+                const mood = record.mood || '😊';
+                const weather = record.weather || '☀️';
+                const text = record.text || '';
+                const date = record.date || '';
+                const time = record.time || '';
+                const displayDate = formatDateDisplay(date);
+                const weekday = getWeekday(date);
+
+                let imagesHtml = '';
+                if (hasImages) {
+                    const showImgs = images.slice(0, MAX_IMAGES);
+                    const count = showImgs.length;
+                    imagesHtml =
+                        `<div class="pdf-images-grid count-${Math.min(count, MAX_IMAGES)}">`;
+                    showImgs.forEach(src => {
+                        // 内联样式确保图片保持比例，不受外部干扰
+                        imagesHtml += `
+                            <div class="pdf-grid-item">
+                                <img src="${src}" alt="记录图片" style="max-width:100%; max-height:100%; width:auto; height:auto; display:block; object-fit:unset;" />
+                            </div>
+                        `;
+                    });
+                    imagesHtml += `</div>`;
+                } else {
+                    imagesHtml = `<div class="pdf-noimage">📝</div>`;
+                }
+
+                const exportHtml = `
+                    <div class="pdf-export-wrap" id="pdfExportWrap">
+                        ${imagesHtml}
+                        <div class="pdf-icons">
+                            <span>${mood}</span>
+                            <span>${weather}</span>
+                        </div>
+                        ${text ? `<div class="pdf-text">${escapeHtml(text)}</div>` :
+                                 `<div class="pdf-text pdf-text-empty">（没有文字记录）</div>`}
+                        <div class="pdf-meta">
+                            <span>📅 ${displayDate}</span>
+                            <span>${weekday}</span>
+                            <span>🕊 ${time}</span>
+                        </div>
+                    </div>
+                `;
+
+                const tempContainer = document.createElement('div');
+                tempContainer.style.cssText =
+                    'position:fixed; left:-9999px; top:0; width:500px; background:#fff; padding:20px; z-index:9999;';
+                tempContainer.innerHTML = exportHtml;
+                document.body.appendChild(tempContainer);
+
+                // 等待所有图片加载完成
+                const imgs = tempContainer.querySelectorAll('img');
+                await Promise.all(Array.from(imgs).map(img =>
+                    new Promise((resolve) => {
+                        if (img.complete) resolve();
+                        else { img.onload = resolve;
+                            img.onerror = resolve; }
+                        setTimeout(resolve, 4000);
+                    })
+                ));
+
+                const targetEl = document.getElementById('pdfExportWrap');
+                const canvas = await html2canvas(targetEl, {
+                    scale: 2,
+                    useCORS: true,
+                    allowTaint: true,
+                    backgroundColor: '#ffffff',
+                    logging: false,
+                    width: 500,
+                    height: targetEl.scrollHeight,
+                });
+
+                document.body.removeChild(tempContainer);
+
+                const imgData = canvas.toDataURL('image/jpeg', 0.95);
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF('p', 'mm', 'a4');
+                const pdfWidth = 210;
+                const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+                pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+                pdf.save(`i人日记_${date}_${time.replace(':','-')}.pdf`);
+
+                showToast('✅ PDF已导出');
+            } catch (err) {
+                console.error(err);
+                showToast('❌ PDF导出失败，请重试');
+            }
+        });
+
+        // ============================================================
+        //  11. 记录模态框（添加·多图）
+        // ============================================================
+
+        let selectedImages = [];
+        let selectedMood = '😊';
+        let selectedWeather = '☀️';
+
+        const modalOverlay = document.getElementById('modalOverlay');
+        const fabBtn = document.getElementById('fabBtn');
+        const modalClose = document.getElementById('modalClose');
+        const btnCancel = document.getElementById('btnCancel');
+        const btnSave = document.getElementById('btnSave');
+        const fileInput = document.getElementById('fileInput');
+        const textInput = document.getElementById('textInput');
+        const moodGrid = document.getElementById('moodGrid');
+        const weatherGrid = document.getElementById('weatherGrid');
+        const imageThumbnails = document.getElementById('imageThumbnails');
+        const maxHint = document.getElementById('maxHint');
+        const uploadHint = document.getElementById('uploadHint');
+
+        function renderMoodSelector() {
+            moodGrid.innerHTML = '';
+            MOODS.forEach(mood => {
+                const btn = document.createElement('button');
+                btn.className = 'mood-btn';
+                btn.dataset.mood = mood;
+                btn.textContent = mood;
+                if (mood === selectedMood) btn.classList.add('active');
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.mood-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    selectedMood = mood;
+                });
+                moodGrid.appendChild(btn);
+            });
+        }
+
+        function renderWeatherSelector() {
+            weatherGrid.innerHTML = '';
+            WEATHERS.forEach(weather => {
+                const btn = document.createElement('button');
+                btn.className = 'weather-btn';
+                btn.dataset.weather = weather;
+                btn.textContent = weather;
+                if (weather === selectedWeather) btn.classList.add('active');
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.weather-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    selectedWeather = weather;
+                });
+                weatherGrid.appendChild(btn);
+            });
+        }
+
+        function renderThumbnails(container, images, onRemove) {
+            container.innerHTML = '';
+            if (images.length === 0) {
+                container.innerHTML =
+                    `<div style="grid-column:1/-1; text-align:center; color:var(--text-light); font-size:13px; padding:12px 0;">还没有添加图片</div>`;
+                return;
+            }
+            images.forEach((src, idx) => {
+                const item = document.createElement('div');
+                item.className = 'thumb-item';
+                const img = document.createElement('img');
+                img.src = src;
+                img.alt = `图片 ${idx+1}`;
+                item.appendChild(img);
+                const removeBtn = document.createElement('button');
+                removeBtn.className = 'thumb-remove';
+                removeBtn.innerHTML = '✕';
+                removeBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    onRemove(idx);
+                });
+                item.appendChild(removeBtn);
+                const indexLabel = document.createElement('span');
+                indexLabel.className = 'thumb-index';
+                indexLabel.textContent = `${idx+1}`;
+                item.appendChild(indexLabel);
+                container.appendChild(item);
+            });
+            updateMaxHint();
+        }
+
+        function updateMaxHint() {
+            const count = selectedImages.length;
+            maxHint.textContent = count >= MAX_IMAGES ? `⚠️ 最多 ${MAX_IMAGES} 张，已满` : `已选 ${count} 张 · 还可添加 ${MAX_IMAGES - count} 张`;
+            uploadHint.textContent = count >= MAX_IMAGES ? '已满' : `最多 ${MAX_IMAGES} 张`;
+        }
+
+        function openModal() {
+            modalOverlay.classList.add('active');
+            fabBtn.classList.add('open');
+            selectedImages = [];
+            selectedMood = '😊';
+            selectedWeather = '☀️';
+            textInput.value = '';
+            document.querySelectorAll('.mood-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.weather-btn').forEach(b => b.classList.remove('active'));
+            const defaultMood = document.querySelector(`.mood-btn[data-mood="😊"]`);
+            if (defaultMood) defaultMood.classList.add('active');
+            const defaultWeather = document.querySelector(`.weather-btn[data-weather="☀️"]`);
+            if (defaultWeather) defaultWeather.classList.add('active');
+            renderThumbnails(imageThumbnails, selectedImages, (idx) => {
+                selectedImages.splice(idx, 1);
+                renderThumbnails(imageThumbnails, selectedImages, (i) => {
+                    selectedImages.splice(i, 1);
+                    renderThumbnails(imageThumbnails, selectedImages, (j) => {
+                        selectedImages.splice(j, 1);
+                        renderThumbnails(imageThumbnails, selectedImages, (k) => {
+                            selectedImages.splice(k, 1);
+                            renderThumbnails(imageThumbnails, selectedImages, (l) => {
+                                selectedImages.splice(l, 1);
+                                renderThumbnails(imageThumbnails, selectedImages, (m) => {
+                                    selectedImages.splice(m, 1);
+                                    renderThumbnails(imageThumbnails,
+                                        selectedImages, (n) => {
+                                            selectedImages.splice(n, 1);
+                                            renderThumbnails(
+                                                imageThumbnails,
+                                                selectedImages, (o) => {
+                                                    selectedImages.splice(
+                                                        o, 1);
+                                                    renderThumbnails(
+                                                        imageThumbnails,
+                                                        selectedImages,
+                                                        () => {});
+                                                });
+                                        });
+                                });
+                            });
+                        });
+                    });
+                });
+            });
+            document.body.style.overflow = 'hidden';
+            setTimeout(() => textInput.focus(), 400);
+            fileInput.value = '';
+        }
+
+        function closeModal() {
+            modalOverlay.classList.remove('active');
+            fabBtn.classList.remove('open');
+            document.body.style.overflow = '';
+            fileInput.value = '';
+        }
+
+        document.getElementById('addImagesBtn').addEventListener('click', () => {
+            if (selectedImages.length >= MAX_IMAGES) {
+                showToast(`最多只能添加 ${MAX_IMAGES} 张图片`);
+                return;
+            }
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', async (e) => {
+            const files = Array.from(e.target.files);
+            if (files.length === 0) return;
+            const remaining = MAX_IMAGES - selectedImages.length;
+            if (files.length > remaining) {
+                showToast(`最多还能添加 ${remaining} 张`);
+                return;
+            }
+            for (const file of files) {
+                if (file.size > 10 * 1024 * 1024) {
+                    showToast(`"${file.name}" 过大，跳过`);
+                    continue;
+                }
+                try {
+                    const compressed = await compressImage(file, 900, 0.7);
+                    selectedImages.push(compressed);
+                } catch (err) {
+                    showToast(`处理 "${file.name}" 失败`);
+                }
+            }
+            renderThumbnails(imageThumbnails, selectedImages, (idx) => {
+                selectedImages.splice(idx, 1);
+                renderThumbnails(imageThumbnails, selectedImages, () => {});
+            });
+            fileInput.value = '';
+        });
+
+        btnSave.addEventListener('click', () => {
+            const text = textInput.value.trim();
+            if (!text && selectedImages.length === 0) {
+                showToast('写点文字或添加图片吧 📝');
+                return;
+            }
+            const result = addRecord(text, selectedImages, selectedMood, selectedWeather);
+            if (result) {
+                closeModal();
+                renderRecords();
+                renderNavigation();
+                renderSlideCard();
+                showToast('✨ 记录已保存');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        });
+
+        function handleClose() {
+            if (textInput.value.trim() || selectedImages.length > 0) {
+                if (confirm('放弃这条记录吗？')) closeModal();
+            } else {
+                closeModal();
+            }
+        }
+
+        modalClose.addEventListener('click', handleClose);
+        btnCancel.addEventListener('click', handleClose);
+        modalOverlay.addEventListener('click', (e) => {
+            if (e.target === modalOverlay) handleClose();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && modalOverlay.classList.contains('active')) handleClose();
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && modalOverlay.classList.contains('active')) {
+                e.preventDefault();
+                btnSave.click();
+            }
+        });
+
+        // ============================================================
+        //  12. 编辑模态框（多图）
+        // ============================================================
+
+        let editingRecordId = null;
+        let editSelectedImages = [];
+        let editSelectedMood = '😊';
+        let editSelectedWeather = '☀️';
+
+        const editModalOverlay = document.getElementById('editModalOverlay');
+        const editModalClose = document.getElementById('editModalClose');
+        const editCancel = document.getElementById('editCancel');
+        const editSave = document.getElementById('editSave');
+        const editDeleteBtn = document.getElementById('editDeleteBtn');
+        const editFileInput = document.getElementById('editFileInput');
+        const editTextInput = document.getElementById('editTextInput');
+        const editMoodGrid = document.getElementById('editMoodGrid');
+        const editWeatherGrid = document.getElementById('editWeatherGrid');
+        const editImageThumbnails = document.getElementById('editImageThumbnails');
+        const editMaxHint = document.getElementById('editMaxHint');
+
+        function renderEditMoodSelector() {
+            editMoodGrid.innerHTML = '';
+            MOODS.forEach(mood => {
+                const btn = document.createElement('button');
+                btn.className = 'mood-btn';
+                btn.dataset.mood = mood;
+                btn.textContent = mood;
+                if (mood === editSelectedMood) btn.classList.add('active');
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('#editMoodGrid .mood-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    editSelectedMood = mood;
+                });
+                editMoodGrid.appendChild(btn);
+            });
+        }
+
+        function renderEditWeatherSelector() {
+            editWeatherGrid.innerHTML = '';
+            WEATHERS.forEach(weather => {
+                const btn = document.createElement('button');
+                btn.className = 'weather-btn';
+                btn.dataset.weather = weather;
+                btn.textContent = weather;
+                if (weather === editSelectedWeather) btn.classList.add('active');
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('#editWeatherGrid .weather-btn').forEach(b => b.classList.remove(
+                    'active'));
+                    btn.classList.add('active');
+                    editSelectedWeather = weather;
+                });
+                editWeatherGrid.appendChild(btn);
+            });
+        }
+
+        function renderEditThumbnails() {
+            editImageThumbnails.innerHTML = '';
+            if (editSelectedImages.length === 0) {
+                editImageThumbnails.innerHTML =
+                    `<div style="grid-column:1/-1; text-align:center; color:var(--text-light); font-size:13px; padding:12px 0;">还没有添加图片</div>`;
+                editMaxHint.textContent = '点击「添加图片」上传';
+                return;
+            }
+            editSelectedImages.forEach((src, idx) => {
+                const item = document.createElement('div');
+                item.className = 'thumb-item';
+                const img = document.createElement('img');
+                img.src = src;
+                img.alt = `图片 ${idx+1}`;
+                item.appendChild(img);
+                const removeBtn = document.createElement('button');
+                removeBtn.className = 'thumb-remove';
+                removeBtn.innerHTML = '✕';
+                removeBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    editSelectedImages.splice(idx, 1);
+                    renderEditThumbnails();
+                });
+                item.appendChild(removeBtn);
+                const indexLabel = document.createElement('span');
+                indexLabel.className = 'thumb-index';
+                indexLabel.textContent = `${idx+1}`;
+                item.appendChild(indexLabel);
+                editImageThumbnails.appendChild(item);
+            });
+            const count = editSelectedImages.length;
+            editMaxHint.textContent = count >= MAX_IMAGES ? `⚠️ 最多 ${MAX_IMAGES} 张，已满` :
+                `已选 ${count} 张 · 还可添加 ${MAX_IMAGES - count} 张`;
+            document.getElementById('editUploadHint').textContent = count >= MAX_IMAGES ? '已满' : `最多 ${MAX_IMAGES} 张`;
+        }
+
+        function openEditModal(recordId) {
+            const record = getRecordById(recordId);
+            if (!record) { showToast('记录不存在'); return; }
+
+            editingRecordId = recordId;
+            editSelectedMood = record.mood || '😊';
+            editSelectedWeather = record.weather || '☀️';
+            editSelectedImages = (record.images || []).filter(img => img && img.length > 100);
+            editTextInput.value = record.text || '';
+
+            renderEditMoodSelector();
+            renderEditWeatherSelector();
+            renderEditThumbnails();
+
+            editModalOverlay.classList.add('active');
+            document.body.style.overflow = 'hidden';
+            setTimeout(() => editTextInput.focus(), 400);
+            editFileInput.value = '';
+        }
+
+        function closeEditModal() {
+            editModalOverlay.classList.remove('active');
+            document.body.style.overflow = '';
+            editingRecordId = null;
+            editFileInput.value = '';
+        }
+
+        document.getElementById('editAddImagesBtn').addEventListener('click', () => {
+            if (editSelectedImages.length >= MAX_IMAGES) {
+                showToast(`最多只能添加 ${MAX_IMAGES} 张图片`);
+                return;
+            }
+            editFileInput.click();
+        });
+
+        editFileInput.addEventListener('change', async (e) => {
+            const files = Array.from(e.target.files);
+            if (files.length === 0) return;
+            const remaining = MAX_IMAGES - editSelectedImages.length;
+            if (files.length > remaining) {
+                showToast(`最多还能添加 ${remaining} 张`);
+                return;
+            }
+            for (const file of files) {
+                if (file.size > 10 * 1024 * 1024) {
+                    showToast(`"${file.name}" 过大，跳过`);
+                    continue;
+                }
+                try {
+                    const compressed = await compressImage(file, 900, 0.7);
+                    editSelectedImages.push(compressed);
+                } catch (err) {
+                    showToast(`处理 "${file.name}" 失败`);
+                }
+            }
+            renderEditThumbnails();
+            editFileInput.value = '';
+        });
+
+        editSave.addEventListener('click', () => {
+            if (!editingRecordId) { showToast('错误：没有选中的记录'); return; }
+            const text = editTextInput.value.trim();
+            if (!text && editSelectedImages.length === 0) {
+                showToast('文字或图片至少保留一项 📝');
+                return;
+            }
+            const updated = updateRecord(editingRecordId, text, editSelectedImages, editSelectedMood, editSelectedWeather);
+            if (updated) {
+                closeEditModal();
+                renderRecords();
+                renderNavigation();
+                renderSlideCard();
+                showToast('✅ 记录已更新');
+            } else {
+                showToast('更新失败，请重试');
+            }
+        });
+
+        editDeleteBtn.addEventListener('click', () => {
+            if (!editingRecordId) return;
+            if (confirm('确定要删除这条记录吗？此操作不可撤销！')) {
+                deleteRecord(editingRecordId);
+                closeEditModal();
+                updateAll();
+                showToast('已删除记录 🗑');
+            }
+        });
+
+        function handleEditClose() {
+            const text = editTextInput.value.trim();
+            const record = editingRecordId ? getRecordById(editingRecordId) : null;
+            const originalText = record ? (record.text || '') : '';
+            const originalImages = record ? (record.images || []) : [];
+            const hasChanged = (text !== originalText) ||
+                (JSON.stringify(editSelectedImages) !== JSON.stringify(originalImages)) ||
+                (editSelectedMood !== (record ? record.mood : '😊')) ||
+                (editSelectedWeather !== (record ? record.weather : '☀️'));
+            if (hasChanged) {
+                if (confirm('有未保存的修改，确定要放弃吗？')) closeEditModal();
+            } else {
+                closeEditModal();
+            }
+        }
+
+        editModalClose.addEventListener('click', handleEditClose);
+        editCancel.addEventListener('click', handleEditClose);
+        editModalOverlay.addEventListener('click', (e) => {
+            if (e.target === editModalOverlay) handleEditClose();
+        });
+
+        // ============================================================
+        //  13. 设置模态框
+        // ============================================================
+
+        const settingsBtn = document.getElementById('settingsBtn');
+        const settingsOverlay = document.getElementById('settingsOverlay');
+        const settingsClose = document.getElementById('settingsClose');
+        const settingsDone = document.getElementById('settingsDone');
+
+        function openSettings() {
+            renderSettingsUI();
+            updateStorageInfo();
+            settingsOverlay.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeSettings() {
+            settingsOverlay.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        settingsBtn.addEventListener('click', openSettings);
+        settingsClose.addEventListener('click', closeSettings);
+        settingsDone.addEventListener('click', closeSettings);
+        settingsOverlay.addEventListener('click', (e) => {
+            if (e.target === settingsOverlay) closeSettings();
+        });
+
+        function renderSettingsUI() {
+            const settings = loadSettings();
+
+            const themeGrid = document.getElementById('themeGrid');
+            themeGrid.innerHTML = '';
+            THEMES.forEach(theme => {
+                const btn = document.createElement('button');
+                btn.className = 'theme-btn';
+                btn.dataset.theme = theme.id;
+                if (theme.id === settings.theme && !settings.customBackground) btn.classList.add('active');
+                btn.innerHTML =
+                    `<span class="theme-dot" style="background:${theme.dot};"></span><span class="theme-name">${theme.name}</span>`;
+                btn.addEventListener('click', () => {
+                    applyTheme(theme.id);
+                    showToast(`主题切换为 “${theme.name}”`);
+                });
+                themeGrid.appendChild(btn);
+            });
+
+            const fontContainer = document.getElementById('fontOptions');
+            fontContainer.innerHTML = '';
+            FONTS.forEach(font => {
+                const btn = document.createElement('button');
+                btn.className = 'font-btn';
+                btn.dataset.font = font.id;
+                if (font.id === settings.font) btn.classList.add('active');
+                btn.innerHTML =
+                    `${font.name}<span class="font-sample" style="font-family:${font.css};">${font.sample}</span>`;
+                btn.addEventListener('click', () => {
+                    applyFont(font.id);
+                    showToast(`字体切换为 “${font.name}”`);
+                });
+                fontContainer.appendChild(btn);
+            });
+
+            updateCustomBgUI();
+        }
+
+        function updateCustomBgUI() {
+            const settings = loadSettings();
+            const preview = document.getElementById('customBgPreview');
+            const removeBtn = document.getElementById('removeBgBtn');
+            if (settings.customBackground && settings.customBackground.length > 100) {
+                preview.src = settings.customBackground;
+                preview.classList.add('show');
+                removeBtn.style.display = 'inline-block';
+            } else {
+                preview.classList.remove('show');
+                removeBtn.style.display = 'none';
+            }
+        }
+
+        const customBgInput = document.getElementById('customBgInput');
+        document.getElementById('chooseBgBtn').addEventListener('click', () => customBgInput.click());
+        customBgInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            if (file.size > 10 * 1024 * 1024) {
+                showToast('图片过大，请选择小于 10MB 的图片');
+                customBgInput.value = '';
+                return;
+            }
+            try {
+                const compressed = await compressImage(file, 1200, 0.7);
+                applyCustomBackground(compressed);
+                customBgInput.value = '';
+            } catch (err) {
+                showToast('图片处理失败，请重试');
+                customBgInput.value = '';
+            }
+        });
+        document.getElementById('removeBgBtn').addEventListener('click', clearCustomBackground);
+
+        // ============================================================
+        //  14. 存储管理
+        // ============================================================
+
+        function updateStorageInfo() {
+            const size = getStorageSize();
+            const records = loadRecords();
+            const recordCount = records.length;
+            const maxSize = 5 * 1024 * 1024;
+            const percent = Math.min((size / maxSize) * 100, 100);
+
+            document.getElementById('storageText').textContent =
+                `已用 ${formatBytes(size)} · 共 ${recordCount} 条记录 ${size > maxSize ? ' ⚠️ 接近上限' : ''}`;
+            document.getElementById('storageFill').style.width = percent + '%';
+        }
+
+        document.getElementById('exportDataBtn').addEventListener('click', () => {
+            const records = loadRecords();
+            const settings = loadSettings();
+            const data = { records, settings, exportedAt: new Date().toISOString() };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `i人日记_备份_${getToday()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('✅ 数据已导出');
+        });
+
+        document.getElementById('importDataBtn').addEventListener('click', () => {
+            document.getElementById('importFileInput').click();
+        });
+
+        document.getElementById('importFileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                try {
+                    const data = JSON.parse(ev.target.result);
+                    if (data.records && Array.isArray(data.records)) {
+                        if (confirm(`将导入 ${data.records.length} 条记录，是否覆盖当前数据？`)) {
+                            const records = data.records.map(r => {
+                                if (r.image && !r.images) { r.images = [r.image];
+                                    delete r.image; }
+                                if (!r.images) r.images = [];
+                                return r;
+                            });
+                            saveRecords(records);
+                            if (data.settings) {
+                                saveSettings(data.settings);
+                                applyBackground(data.settings);
+                                applyFont(data.settings.font || 'system');
+                            }
+                            currentFilterDate = getToday();
+                            updateAll();
+                            updateStorageInfo();
+                            localStorage.removeItem('has_shown_restore_tip');
+                            showToast('✅ 数据导入成功');
+                        }
+                    } else {
+                        showToast('❌ 无效的备份文件');
+                    }
+                } catch (err) {
+                    showToast('❌ 文件解析失败');
+                }
+            };
+            reader.readAsText(file);
+            e.target.value = '';
+        });
+
+        document.getElementById('clearOldBtn').addEventListener('click', () => {
+            const records = loadRecords();
+            if (records.length === 0) { showToast('没有记录可清理'); return; }
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            const cutoff = thirtyDaysAgo.toISOString().slice(0, 10);
+            const toKeep = records.filter(r => r.date >= cutoff);
+            const toRemove = records.length - toKeep.length;
+            if (toRemove === 0) { showToast('没有超过30天的旧记录'); return; }
+            if (confirm(`将删除 ${toRemove} 条 30 天前的记录，确定吗？`)) {
+                saveRecords(toKeep);
+                currentFilterDate = getToday();
+                updateAll();
+                updateStorageInfo();
+                showToast(`✅ 已清理 ${toRemove} 条旧记录`);
+            }
+        });
+
+        // ============================================================
+        //  15. 日期导航
+        // ============================================================
+
+        document.getElementById('prevDayBtn').addEventListener('click', goToPrevDay);
+        document.getElementById('nextDayBtn').addEventListener('click', goToNextDay);
+
+        document.getElementById('clearFilterBtn').addEventListener('click', () => {
+            if (currentFilterDate) {
+                currentFilterDate = '';
+                updateAll();
+                showToast('显示全部记录 📖');
+            } else {
+                showToast('已经是全部记录啦');
+            }
+        });
+
+        document.getElementById('navDateDisplay').addEventListener('click', openCalendar);
+
+        // ============================================================
+        //  16. 清空所有
+        // ============================================================
+
+        document.getElementById('clearAllBtn').addEventListener('click', () => {
+            const records = loadRecords();
+            if (records.length === 0) { showToast('还没有记录呢 🌱'); return; }
+            if (confirm('确定要清空所有记录吗？此操作不可撤销！')) {
+                clearAllRecords();
+                currentFilterDate = getToday();
+                updateAll();
+                showToast('已清空所有记录 🍃');
+            }
+        });
+
+        // ============================================================
+        //  17. 事件委托：图片点击放大（记录列表 & 查看模态框）
+        // ============================================================
+
+        document.getElementById('recordsList').addEventListener('click', function(e) {
+            const target = e.target.closest('.grid-item');
+            if (!target) return;
+            e.stopPropagation();
+
+            const grid = target.closest('.record-images-grid');
+            if (!grid) return;
+            const recordId = grid.dataset.recordId;
+            if (!recordId) return;
+
+            const record = getRecordById(recordId);
+            if (!record || !record.images) return;
+            const images = record.images.filter(img => img && img.length > 100);
+            if (images.length === 0) return;
+
+            const imgEl = target.querySelector('img');
+            const src = imgEl ? imgEl.src : images[0];
+            const idx = images.indexOf(src);
+            openImagePreview(src, images, idx !== -1 ? idx : 0);
+        });
+
+        document.getElementById('viewContent').addEventListener('click', function(e) {
+            const target = e.target.closest('.grid-item');
+            if (!target) return;
+            e.stopPropagation();
+
+            if (!viewingRecordId) return;
+            const record = getRecordById(viewingRecordId);
+            if (!record || !record.images) return;
+            const images = record.images.filter(img => img && img.length > 100);
+            if (images.length === 0) return;
+
+            const imgEl = target.querySelector('img');
+            const src = imgEl ? imgEl.src : images[0];
+            const idx = images.indexOf(src);
+            openImagePreview(src, images, idx !== -1 ? idx : 0);
+        });
+
+        // ============================================================
+        //  18. 初始化
+        // ============================================================
+
+        function init() {
+            const settings = loadSettings();
+            applyBackground(settings);
+            applyFont(settings.font);
+
+            renderMoodSelector();
+            renderWeatherSelector();
+
+            const records = loadRecords();
+            if (records.length === 0) {
+                const hasShownRestoreTip = localStorage.getItem('has_shown_restore_tip');
+                if (!hasShownRestoreTip) {
+                    setTimeout(() => {
+                        if (confirm('📥 检测到新安装或数据为空，是否立即从备份文件恢复记录？\n\n（如果这是首次使用，请点击“取消”）')) {
+                            document.getElementById('importFileInput').click();
+                        }
+                        localStorage.setItem('has_shown_restore_tip', 'true');
+                    }, 500);
+                }
+            }
+
+            currentFilterDate = getToday();
+            updateAll();
+
+            fabBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                if (modalOverlay.classList.contains('active')) {
+                    handleClose();
+                } else {
+                    openModal();
+                    if (!modalOverlay.classList.contains('active')) {
+                        modalOverlay.classList.add('active');
+                        fabBtn.classList.add('open');
+                        document.body.style.overflow = 'hidden';
+                    }
+                }
+            });
+
+            setInterval(() => {
+                const today = getToday();
+                if (!currentFilterDate || isToday(currentFilterDate)) {
+                    renderSlideCard();
+                }
+            }, 60000);
+
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden) {
+                    const today = getToday();
+                    if (!currentFilterDate || isToday(currentFilterDate)) {
+                        renderSlideCard();
+                    }
+                }
+            });
+
+            console.log('✦ i人日记 v6.5 (PDF图片比例修复) 启动 ✦');
+            console.log(`📖 共 ${loadRecords().length} 条记录`);
+            console.log(`💾 存储用量: ${formatBytes(getStorageSize())}`);
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    </script>
+</body>
+</html>
